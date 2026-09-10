@@ -20,11 +20,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(`${siteUrl}/`),
   title: '答案诞生之前｜科学时间历险',
-  description: '穿过时间迷雾，重做改变人类文明的物理与化学实验。',
+  description: '穿过时间迷雾，设计实验、排除解释，亲历改变人类文明的科学发现。',
   referrer: 'strict-origin-when-cross-origin',
   openGraph: {
     title: '答案诞生之前｜科学时间历险',
-    description: '从现代出发，穿过时间迷雾，亲手追回被遗忘的科学答案。',
+    description:
+      '从现代出发，回到答案尚未诞生的年代，亲手设计能够区分解释的实验。',
     type: 'website',
     locale: 'zh_CN',
     images: [
@@ -39,7 +40,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: '答案诞生之前｜科学时间历险',
-    description: '回到结论尚未诞生的年代，重做改变文明的实验。',
+    description: '回到结论尚未诞生的年代，设计实验并亲历科学发现。',
     images: [socialImageUrl],
   },
 };
