@@ -2110,47 +2110,110 @@ const claims = [
     prompt: '从日志中选出两条只改变电池方向或磁极、其余条件相同的记录。',
     success:
       '机械震动不会因为电池方向改变而反向；信号却反向了。这个解释失去生存空间。',
-    failure: '这组记录还同时改变了其他条件，无法把方向反转归因于电池或磁极。',
   },
   {
     id: 'leak',
     title: '“电一定是沿着铁环偷偷漏到了另一侧。”',
     prompt: '选出一条没有原线圈电池、仍然出现电流的磁铁实验。',
     success: '磁铁与线圈没有导线接触，运动时仍出现电流。“漏电”解释被切断。',
-    failure:
-      '这条记录还不能排除电流沿铁环传递。寻找磁铁运动且信号不为零的实验。',
   },
   {
     id: 'static',
     title: '“只要磁性存在，就应该一直产生电流。”',
     prompt: '选出同一装置中的一条变化记录和一条保持不动的零记录。',
     success: '磁性仍存在，但不变化时信号为零；只有状态改变的过程产生短暂电流。',
-    failure: '需要在尽量相同的装置中比较“变化”和“保持”，否则零结果没有区分力。',
   },
 ] as const;
 
-function recordsDefeatClaim(
-  claimId: (typeof claims)[number]['id'],
+type CourtClaimId = (typeof claims)[number]['id'];
+
+function evidenceGroupsForClaim(
+  claimId: CourtClaimId,
+  records: ExperimentRecord[],
+) {
+  if (claimId === 'leak') {
+    return records
+      .filter((record) => record.mode === 'magnet' && record.strength > 0)
+      .map((record) => [record.id]);
+  }
+
+  const groups: number[][] = [];
+  for (let index = 0; index < records.length; index += 1) {
+    for (
+      let candidateIndex = index + 1;
+      candidateIndex < records.length;
+      candidateIndex += 1
+    ) {
+      const first = records[index];
+      const second = records[candidateIndex];
+      const valid =
+        claimId === 'jolt'
+          ? sameContextExcept(first, second, 'polarity') &&
+            first.polarity !== second.polarity &&
+            first.direction !== second.direction
+          : sameContextExcept(first, second, 'action') &&
+            first.action !== second.action &&
+            (first.strength === 0) !== (second.strength === 0);
+      if (valid) groups.push([first.id, second.id]);
+    }
+  }
+  return groups;
+}
+
+function selectionMatchesGroup(selectedIds: number[], group: number[]) {
+  return (
+    selectedIds.length === group.length &&
+    group.every((recordId) => selectedIds.includes(recordId))
+  );
+}
+
+function explainEvidenceMismatch(
+  claimId: CourtClaimId,
   selected: ExperimentRecord[],
 ) {
-  if (claimId === 'jolt') {
-    if (selected.length !== 2) return false;
-    const [first, second] = selected;
-    return (
-      sameContextExcept(first, second, 'polarity') &&
-      first.polarity !== second.polarity &&
-      first.direction !== second.direction
-    );
+  if (claimId === 'leak') {
+    const record = selected[0];
+    if (!record) return '还没有选择记录。先找一条磁铁与线圈实验。';
+    if (record.mode !== 'magnet')
+      return `记录 #${String(record.id).padStart(2, '0')} 仍使用感应环，不能切断“电沿铁环漏过去”的退路。`;
+    return `记录 #${String(record.id).padStart(2, '0')} 的信号为零；需要磁铁运动且确实出现偏转的记录。`;
   }
-  if (claimId === 'leak')
-    return selected.some(
-      (record) => record.mode === 'magnet' && record.strength > 0,
+
+  if (selected.length < 2) return '还差一条记录，暂时无法组成对照。';
+  const [first, second] = selected;
+  if (first.mode !== second.mode)
+    return '两条记录使用了不同装置。先保持装置相同，再比较一个目标条件。';
+
+  if (claimId === 'jolt') {
+    const extraChanges = relevantFieldsFor(first.mode).filter(
+      (field) => field !== 'polarity' && first[field] !== second[field],
     );
-  if (selected.length !== 2) return false;
-  const changing = selected.find((record) => record.strength > 0);
-  const still = selected.find((record) => record.strength === 0);
-  return Boolean(
-    changing && still && sameContextExcept(changing, still, 'action'),
+    if (extraChanges.length)
+      return `除了方向，这组记录还改变了${extraChanges.map((field) => fieldLabels[field]).join('、')}。因此无法判断究竟是谁让指针反向。`;
+    if (first.polarity === second.polarity)
+      return '两条记录的电池方向或磁极相同。请保留其中一条，再找方向相反的记录。';
+    return '方向虽然改变了，但这两条记录没有呈现相反偏转，暂时不能排除桌面震动。';
+  }
+
+  const extraChanges = relevantFieldsFor(first.mode).filter(
+    (field) => field !== 'action' && first[field] !== second[field],
+  );
+  if (extraChanges.length)
+    return `除了动作，这组记录还改变了${extraChanges.map((field) => fieldLabels[field]).join('、')}。零结果还不能只归因于“保持不动”。`;
+  if (first.action === second.action)
+    return '两条记录执行了相同动作。需要比较一次“发生变化”和一次“保持不动”。';
+  return '这两条记录需要一条出现偏转、另一条保持为零，才能区分“磁性存在”和“磁性变化”。';
+}
+
+function recordsDefeatClaim(
+  claimId: CourtClaimId,
+  selected: ExperimentRecord[],
+) {
+  return evidenceGroupsForClaim(claimId, selected).some((group) =>
+    selectionMatchesGroup(
+      selected.map((record) => record.id),
+      group,
+    ),
   );
 }
 
@@ -2169,9 +2232,9 @@ function CourtStage({
 }) {
   const [claimIndex, setClaimIndex] = useState(0);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [feedback, setFeedback] = useState(
-    '从实验日志中选择一到两条记录，组成能排除当前解释的证据。',
-  );
+  const [feedback, setFeedback] = useState('');
+  const [showCandidates, setShowCandidates] = useState(false);
+  const [failedAttempts, setFailedAttempts] = useState(0);
   const [roundSolved, setRoundSolved] = useState(false);
   const claim = claims[claimIndex];
   const hypothesis = hypotheses.find((item) => item.id === selectedHypothesis);
@@ -2182,23 +2245,103 @@ function CourtStage({
     0,
     100 - claimIndex * 33 - (roundSolved ? (claimIndex === 2 ? 34 : 33) : 0),
   );
+  const requiredSelectionCount = claim.id === 'leak' ? 1 : 2;
+  const validEvidenceGroups = useMemo(
+    () => evidenceGroupsForClaim(claim.id, records),
+    [claim.id, records],
+  );
+  const candidateIds = useMemo(
+    () => new Set(validEvidenceGroups.flat()),
+    [validEvidenceGroups],
+  );
+  const compatibleIds = useMemo(() => {
+    if (selectedIds.length !== 1 || requiredSelectionCount !== 2)
+      return new Set<number>();
+    const selectedId = selectedIds[0];
+    return new Set(
+      validEvidenceGroups
+        .filter((group) => group.includes(selectedId))
+        .flatMap((group) =>
+          group.filter((recordId) => recordId !== selectedId),
+        ),
+    );
+  }, [requiredSelectionCount, selectedIds, validEvidenceGroups]);
+  const selectedMatches = validEvidenceGroups.some((group) =>
+    selectionMatchesGroup(selectedIds, group),
+  );
+  const rankedRecords = useMemo(() => {
+    const score = (record: ExperimentRecord) => {
+      if (selectedIds.includes(record.id)) return 4;
+      if (compatibleIds.has(record.id)) return 3;
+      if (showCandidates && candidateIds.has(record.id)) return 2;
+      return 0;
+    };
+    return [...records].sort(
+      (first, second) => score(second) - score(first) || second.id - first.id,
+    );
+  }, [candidateIds, compatibleIds, records, selectedIds, showCandidates]);
+  const recommendedGroup = validEvidenceGroups[0] ?? [];
+  const selectionReady = selectedIds.length === requiredSelectionCount;
+  const selectedFirst = selectedRecords[0];
+  const selectionGuide = (() => {
+    if (!validEvidenceGroups.length)
+      return '当前日志里没有足够证据完成这项质询。请返回实验台补做对应的主线调查。';
+    if (!selectedIds.length) {
+      if (claim.id === 'jolt')
+        return '第一步：先选一条有正或负偏转的记录，把它当作基准。';
+      if (claim.id === 'leak')
+        return '寻找“磁铁与线圈”装置中，磁铁运动且信号不为零的记录。';
+      return '第一步：先选一条发生偏转或保持为零的记录，把它当作基准。';
+    }
+    if (requiredSelectionCount === 1)
+      return selectedMatches
+        ? '这条记录切断了铁环与电池的退路，可以提交检验。'
+        : explainEvidenceMismatch(claim.id, selectedRecords);
+    if (selectedIds.length === 1)
+      return compatibleIds.size
+        ? `记录 #${String(selectedFirst?.id ?? 0).padStart(2, '0')} 已作为基准。现在找标有“可配对”的记录。`
+        : `记录 #${String(selectedFirst?.id ?? 0).padStart(2, '0')} 在本题中没有公平对照伙伴。取消它，再试一条“候选记录”。`;
+    return selectedMatches
+      ? '变量检查通过：两条记录只改变了本题要检验的条件，可以提交。'
+      : explainEvidenceMismatch(claim.id, selectedRecords);
+  })();
 
   const toggleRecord = (id: number) => {
     if (roundSolved) return;
-    setFeedback('证据已放上论证台。现在检查它是否真正区分了两个解释。');
+    setFeedback('');
     setSelectedIds((current) => {
       if (current.includes(id))
         return current.filter((recordId) => recordId !== id);
-      if (current.length >= 2) return [current[1], id];
+      if (requiredSelectionCount === 1) return [id];
+      if (current.length >= requiredSelectionCount)
+        return [current[current.length - 1], id];
       return [...current, id];
     });
   };
 
   const submitEvidence = () => {
-    if (!selectedRecords.length || roundSolved) return;
+    if (!selectionReady || roundSolved) return;
     const solved = recordsDefeatClaim(claim.id, selectedRecords);
-    setFeedback(solved ? claim.success : claim.failure);
-    if (solved) setRoundSolved(true);
+    setFeedback(
+      solved
+        ? claim.success
+        : explainEvidenceMismatch(claim.id, selectedRecords),
+    );
+    if (solved) {
+      setRoundSolved(true);
+    } else {
+      setFailedAttempts((current) => current + 1);
+      setShowCandidates(true);
+    }
+  };
+
+  const placeGuidedEvidence = () => {
+    if (!recommendedGroup.length || roundSolved) return;
+    setSelectedIds(recommendedGroup);
+    setShowCandidates(true);
+    setFeedback(
+      '雾灯助手放入了一组可比较的记录。先逐项核对它们哪里相同、哪里不同，再提交检验。',
+    );
   };
 
   const advance = () => {
@@ -2210,7 +2353,9 @@ function CourtStage({
     setClaimIndex((current) => current + 1);
     setSelectedIds([]);
     setRoundSolved(false);
-    setFeedback('新的替代解释出现了。重新选择最有区分力的实验记录。');
+    setFeedback('');
+    setShowCandidates(false);
+    setFailedAttempts(0);
   };
 
   return (
@@ -2268,12 +2413,58 @@ function CourtStage({
               <p>{claim.prompt}</p>
             </div>
           </div>
+          {!roundSolved ? (
+            <div className="court-coach">
+              <div className="court-coach__steps" aria-label="选择证据步骤">
+                <span
+                  className={selectedIds.length ? 'is-complete' : 'is-active'}
+                >
+                  1 · 选基准
+                </span>
+                {requiredSelectionCount === 2 ? (
+                  <span
+                    className={
+                      selectedIds.length === 1
+                        ? 'is-active'
+                        : selectedIds.length === 2
+                          ? 'is-complete'
+                          : ''
+                    }
+                  >
+                    2 · 找公平对照
+                  </span>
+                ) : null}
+                <span className={selectionReady ? 'is-active' : ''}>
+                  {requiredSelectionCount === 2 ? '3' : '2'} · 检查解释
+                </span>
+              </div>
+              <p>
+                <Lightbulb />
+                <span>{selectionGuide}</span>
+              </p>
+              <div className="court-coach__actions">
+                <button
+                  type="button"
+                  onClick={() => setShowCandidates(true)}
+                  disabled={showCandidates}
+                >
+                  {showCandidates ? '候选记录已标出' : '给我标出候选记录'}
+                </button>
+                {(showCandidates || failedAttempts > 0) &&
+                recommendedGroup.length ? (
+                  <button type="button" onClick={placeGuidedEvidence}>
+                    帮我放入一组公平对照
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
           <div
             className={`reasoning-feedback ${roundSolved ? 'is-success' : ''}`}
             aria-live="polite"
           >
             <Brain />
-            <p>{feedback}</p>
+            <p>{feedback || selectionGuide}</p>
           </div>
           <div className="court-actions">
             {roundSolved ? (
@@ -2287,31 +2478,53 @@ function CourtStage({
               <Button
                 className="primary-cta"
                 size="lg"
-                disabled={!selectedIds.length}
+                disabled={!selectionReady || !validEvidenceGroups.length}
                 onClick={submitEvidence}
               >
-                检验证据的区分力 <Scale />
+                {selectionReady
+                  ? '检验证据的区分力'
+                  : `还需选择 ${requiredSelectionCount - selectedIds.length} 条记录`}{' '}
+                <Scale />
               </Button>
             )}
           </div>
         </div>
         <aside className="evidence-ledger">
           <div className="panel-kicker">
-            <Notebook /> 选择实验记录 · {selectedIds.length}/2
+            <Notebook /> 选择实验记录 · {selectedIds.length}/
+            {requiredSelectionCount}
           </div>
+          {showCandidates ? (
+            <p className="evidence-ledger__legend">
+              “候选”能回答本题；选定基准后，“可配对”表示其余条件一致。
+            </p>
+          ) : null}
           <div className="evidence-ledger__records">
-            {[...records].reverse().map((record) => {
+            {rankedRecords.map((record) => {
               const selected = selectedIds.includes(record.id);
+              const candidate = candidateIds.has(record.id);
+              const compatible = compatibleIds.has(record.id);
+              const showCandidate = showCandidates && candidate && !selected;
               return (
                 <button
                   type="button"
-                  className={`court-record ${selected ? 'is-selected' : ''}`}
+                  className={`court-record ${selected ? 'is-selected' : ''} ${compatible ? 'is-compatible' : ''} ${showCandidate ? 'is-candidate' : ''} ${showCandidates && !candidate ? 'is-unrelated' : ''}`}
                   key={record.id}
                   onClick={() => toggleRecord(record.id)}
                   disabled={roundSolved}
+                  aria-pressed={selected}
                 >
                   <span>#{String(record.id).padStart(2, '0')}</span>
                   <div>
+                    {selected || compatible || showCandidate ? (
+                      <em className="court-record__match">
+                        {selected
+                          ? '已选择'
+                          : compatible
+                            ? '可配对'
+                            : '候选记录'}
+                      </em>
+                    ) : null}
                     <strong>
                       {record.mode === 'ring' ? '感应环' : '磁铁线圈'} ·{' '}
                       {actionLabels[record.action]}
