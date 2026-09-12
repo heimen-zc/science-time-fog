@@ -1,7 +1,15 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type DragEvent as ReactDragEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   Archive,
   ArrowLeft,
@@ -1055,12 +1063,12 @@ const investigationDefinitions: InvestigationDefinition[] = [
     title: '捕捉三个时刻',
     question: '指针究竟在什么时候运动？',
     method:
-      '装置条件已经固定。依次比较接通、保持和断开，观察“零结果”是否也在说话。',
+      '拖动导线接通或断开；回路接通后按住观察稳定状态。三个时刻必须使用同一套装置。',
     slotLabels: ['接通电池', '保持不动', '断开电池'],
     hints: [
-      '先点击一个空证据槽，实验台会替你选中相应动作。',
-      '三个实验只需要改变“动作”，材料、方向、匝数和电池规模都不要动。',
-      '点击“帮我摆好下一步”，系统只准备装置，现象仍由你亲自观察。',
+      '点击一个空证据槽，实验台会把导线放到这个动作开始前的位置。',
+      '观察“保持不动”时，先接通回路，再按住观察按钮直到刻度走满。',
+      '点击“帮我摆好下一步”，系统只准备导线位置，动作仍由你亲手完成。',
     ],
   },
   {
@@ -1300,6 +1308,384 @@ function EvidenceSlots({
   );
 }
 
+type StorySpeaker = 'guide' | 'faraday' | 'fog';
+
+type NarrativeBeat = {
+  speaker: StorySpeaker;
+  name: string;
+  role: string;
+  eyebrow: string;
+  line: string;
+};
+
+function StoryPortrait({ speaker }: { speaker: StorySpeaker }) {
+  return (
+    <span
+      className={`story-portrait story-portrait--${speaker}`}
+      style={{
+        backgroundImage: `url("${publicAsset('/science-character-triptych.webp')}")`,
+      }}
+      aria-hidden="true"
+    />
+  );
+}
+
+function NarrativeDirector({
+  beat,
+  pulsing,
+}: {
+  beat: NarrativeBeat;
+  pulsing: boolean;
+}) {
+  return (
+    <aside
+      className={`narrative-director narrative-director--${beat.speaker} ${pulsing ? 'is-reacting' : ''}`}
+      aria-live="polite"
+    >
+      <StoryPortrait speaker={beat.speaker} />
+      <div
+        className="narrative-director__copy"
+        key={`${beat.speaker}-${beat.line}`}
+      >
+        <div>
+          <span>{beat.name}</span>
+          <small>{beat.role}</small>
+        </div>
+        <p>{beat.line}</p>
+        <em>{beat.eyebrow}</em>
+      </div>
+      <span className="narrative-director__state">
+        <i /> {pulsing ? '正在观察仪器' : '等待你的行动'}
+      </span>
+    </aside>
+  );
+}
+
+function CircuitGestureControl({
+  connected,
+  disabled,
+  onConnectionChange,
+  onHold,
+}: {
+  connected: boolean;
+  disabled: boolean;
+  onConnectionChange: (connected: boolean) => void;
+  onHold: () => void;
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const holdTimer = useRef<number | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [dragProgress, setDragProgress] = useState(connected ? 1 : 0);
+  const [holding, setHolding] = useState(false);
+  const [holdNudge, setHoldNudge] = useState('');
+  const visibleDragProgress = dragging ? dragProgress : connected ? 1 : 0;
+
+  useEffect(
+    () => () => {
+      if (holdTimer.current !== null) window.clearTimeout(holdTimer.current);
+    },
+    [],
+  );
+
+  const progressAt = (clientX: number) => {
+    const rect = trackRef.current?.getBoundingClientRect();
+    if (!rect?.width) return connected ? 1 : 0;
+    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  };
+
+  const commitConnection = (nextConnected: boolean) => {
+    if (disabled || nextConnected === connected) return;
+    setDragProgress(nextConnected ? 1 : 0);
+    onConnectionChange(nextConnected);
+  };
+
+  const startDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (disabled) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDragging(true);
+    setDragProgress(progressAt(event.clientX));
+  };
+
+  const moveDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!dragging || disabled) return;
+    setDragProgress(progressAt(event.clientX));
+  };
+
+  const finishDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!dragging) return;
+    const nextConnected = progressAt(event.clientX) >= 0.5;
+    setDragging(false);
+    setDragProgress(nextConnected ? 1 : 0);
+    commitConnection(nextConnected);
+  };
+
+  const cancelDrag = () => {
+    setDragging(false);
+    setDragProgress(connected ? 1 : 0);
+  };
+
+  const handleSwitchKey = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (disabled) return;
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      commitConnection(false);
+    }
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      commitConnection(true);
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      commitConnection(!connected);
+    }
+  };
+
+  const startHold = () => {
+    if (disabled || !connected || holdTimer.current !== null) return;
+    setHoldNudge('');
+    setHolding(true);
+    holdTimer.current = window.setTimeout(() => {
+      holdTimer.current = null;
+      setHolding(false);
+      onHold();
+    }, 700);
+  };
+
+  const cancelHold = () => {
+    if (holdTimer.current !== null) {
+      window.clearTimeout(holdTimer.current);
+      holdTimer.current = null;
+      setHoldNudge('再按久一点，等观察刻度走满。');
+    }
+    setHolding(false);
+  };
+
+  return (
+    <div className={`circuit-gesture ${connected ? 'is-connected' : ''}`}>
+      <div className="circuit-gesture__heading">
+        <span>
+          <Battery /> 亲手控制电池回路
+        </span>
+        <strong>{connected ? '回路已接通' : '回路已断开'}</strong>
+      </div>
+      <div className="circuit-gesture__track" ref={trackRef}>
+        <span className="circuit-contact circuit-contact--open">断开</span>
+        <span className="circuit-wire" />
+        <span className="circuit-contact circuit-contact--closed">接通</span>
+        <button
+          type="button"
+          className={`circuit-plug ${dragging ? 'is-dragging' : ''}`}
+          style={{ left: `${visibleDragProgress * 68}%` }}
+          role="switch"
+          aria-checked={connected}
+          aria-label={`拖动导线${connected ? '断开' : '接通'}电池回路`}
+          disabled={disabled}
+          onPointerDown={startDrag}
+          onPointerMove={moveDrag}
+          onPointerUp={finishDrag}
+          onPointerCancel={cancelDrag}
+          onKeyDown={handleSwitchKey}
+        >
+          <Zap />
+          <span>拖动导线</span>
+        </button>
+      </div>
+      <div className="circuit-gesture__actions">
+        <button
+          type="button"
+          className="circuit-fallback"
+          disabled={disabled}
+          onClick={() => commitConnection(!connected)}
+        >
+          拖动困难？点此{connected ? '断开' : '接通'}
+        </button>
+        {connected ? (
+          <button
+            type="button"
+            className={`circuit-hold ${holding ? 'is-holding' : ''}`}
+            disabled={disabled}
+            onPointerDown={(event) => {
+              event.currentTarget.setPointerCapture(event.pointerId);
+              startHold();
+            }}
+            onPointerUp={cancelHold}
+            onPointerCancel={cancelHold}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') startHold();
+            }}
+            onKeyUp={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') cancelHold();
+            }}
+          >
+            <Radio /> 按住观察 1 秒
+          </button>
+        ) : null}
+      </div>
+      <p>
+        {holdNudge ||
+          '拖动会直接执行接通或断开；回路接通后，可以按住观察稳定状态。'}
+      </p>
+    </div>
+  );
+}
+
+const chainSlotLabels = ['动作发生', '状态保持', '动作撤销'];
+
+function EvidenceChainChallenge({
+  records,
+  onSolved,
+}: {
+  records: ExperimentRecord[];
+  onSolved: () => void;
+}) {
+  const [slots, setSlots] = useState<Array<number | null>>([null, null, null]);
+  const [feedback, setFeedback] = useState(
+    '拖动记录，或依次点击记录，把三个时刻排成一条可以检查的证据链。',
+  );
+  const [attempts, setAttempts] = useState(0);
+  const orderedRecords = [records[2], records[0], records[1]].filter(Boolean);
+
+  const placeRecord = (recordId: number, requestedSlot?: number) => {
+    if (!records.some((record) => record.id === recordId)) return;
+    setSlots((current) => {
+      if (requestedSlot === undefined && current.includes(recordId))
+        return current.map((id) => (id === recordId ? null : id));
+      const next = current.map((id) => (id === recordId ? null : id));
+      const target =
+        requestedSlot ??
+        Math.max(
+          0,
+          next.findIndex((id) => id === null),
+        );
+      if (target < 0 || target >= next.length) return current;
+      next[target] = recordId;
+      return next;
+    });
+    setFeedback('继续排列。重点比较动作发生、状态保持和动作撤销三个时刻。');
+  };
+
+  const dropRecord = (
+    event: ReactDragEvent<HTMLButtonElement>,
+    target: number,
+  ) => {
+    event.preventDefault();
+    const recordId = Number(event.dataTransfer.getData('text/plain'));
+    // COSEC: 仅接受当前受控实验序列中的整数记录编号。
+    if (
+      !Number.isInteger(recordId) ||
+      !records.some((record) => record.id === recordId)
+    )
+      return;
+    placeRecord(recordId, target);
+  };
+
+  const checkChain = () => {
+    if (slots.some((id) => id === null)) return;
+    const correct = ringActions.every((action, index) => {
+      const record = records.find((item) => item.id === slots[index]);
+      return record?.action === action;
+    });
+    if (correct) {
+      setFeedback('证据链闭合：接通时偏转，保持时归零，断开时反向。');
+      onSolved();
+      return;
+    }
+    setAttempts((current) => current + 1);
+    setFeedback(
+      '顺序还不能解释全过程。先找“动作刚发生”的记录，再找状态保持，最后找动作撤销。',
+    );
+  };
+
+  const placeFirstClue = () => {
+    const first = records.find((record) => record.action === 'connect');
+    if (first) placeRecord(first.id, 0);
+    setFeedback(
+      '第一格已经放好：接通是动作发生的时刻。现在判断中间和最后两格。',
+    );
+  };
+
+  return (
+    <section className="evidence-chain" aria-labelledby="evidence-chain-title">
+      <div className="evidence-chain__heading">
+        <div>
+          <span>剧情行动 · 重建刚才的一秒</span>
+          <h3 id="evidence-chain-title">把三张记录连成因果顺序</h3>
+        </div>
+        <Badge variant="outline">拖拽 / 点击均可</Badge>
+      </div>
+      <div className="evidence-chain__tokens" aria-label="待整理的实验记录">
+        {orderedRecords.map((record) => {
+          const placed = slots.includes(record.id);
+          return (
+            <button
+              type="button"
+              draggable
+              className={placed ? 'is-placed' : ''}
+              key={record.id}
+              onClick={() => placeRecord(record.id)}
+              onDragStart={(event) =>
+                event.dataTransfer.setData('text/plain', String(record.id))
+              }
+            >
+              <span>#{String(record.id).padStart(2, '0')}</span>
+              <strong>{actionLabels[record.action]}</strong>
+              <em>{signalLabel(record)}</em>
+            </button>
+          );
+        })}
+      </div>
+      <div className="evidence-chain__rail" aria-label="证据链顺序">
+        {chainSlotLabels.map((label, index) => {
+          const record = records.find((item) => item.id === slots[index]);
+          return (
+            <button
+              type="button"
+              className={record ? 'is-filled' : ''}
+              key={label}
+              onClick={() =>
+                setSlots((current) =>
+                  current.map((id, slotIndex) =>
+                    slotIndex === index ? null : id,
+                  ),
+                )
+              }
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => dropRecord(event, index)}
+              aria-label={record ? `移除${label}中的记录` : `${label}空位`}
+            >
+              <small>
+                {index + 1} · {label}
+              </small>
+              <strong>
+                {record ? actionLabels[record.action] : '把记录放在这里'}
+              </strong>
+              <span>{record ? signalLabel(record) : '—'}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="evidence-chain__feedback" aria-live="polite">
+        <Compass />
+        <p>{feedback}</p>
+      </div>
+      <div className="evidence-chain__actions">
+        {attempts > 0 ? (
+          <Button variant="outline" onClick={placeFirstClue}>
+            <Lightbulb /> 帮我排第一张
+          </Button>
+        ) : null}
+        <Button
+          className="primary-cta"
+          disabled={slots.some((id) => id === null)}
+          onClick={checkChain}
+        >
+          检查证据链 <ArrowRight />
+        </Button>
+      </div>
+    </section>
+  );
+}
+
 function VariableDiffRadar({
   baseline,
   latest,
@@ -1365,39 +1751,46 @@ function ExperimentStage({
   setup,
   records,
   latestRecord,
+  selectedHypothesis,
+  transientChainSolved,
   pulsing,
   announcement,
   onSetupChange,
   onRun,
+  onTransientChainSolved,
   onCourt,
   onBack,
 }: {
   setup: ExperimentSetup;
   records: ExperimentRecord[];
   latestRecord: ExperimentRecord | null;
+  selectedHypothesis: HypothesisId | null;
+  transientChainSolved: boolean;
   pulsing: boolean;
   announcement: string;
   onSetupChange: (patch: Partial<ExperimentSetup>) => void;
-  onRun: () => void;
+  onRun: (setupOverride?: ExperimentSetup) => void;
+  onTransientChainSolved: () => void;
   onCourt: () => void;
   onBack: () => void;
 }) {
   const insights = getInsights(records);
-  const requiredComplete =
-    insights.transient &&
-    insights.polarity &&
-    insights.magnetMotion &&
-    insights.rate;
-  const completedCount = investigationDefinitions.filter(
-    (item) => insights[item.id],
+  const investigationComplete = (id: InvestigationId) =>
+    insights[id] && (id !== 'transient' || transientChainSolved);
+  const requiredComplete = investigationDefinitions.every((item) =>
+    investigationComplete(item.id),
+  );
+  const completedCount = investigationDefinitions.filter((item) =>
+    investigationComplete(item.id),
   ).length;
   const [labMode, setLabMode] = useState<LabMode>('guided');
   const [activeInvestigation, setActiveInvestigation] =
     useState<InvestigationId>(
       () =>
-        investigationDefinitions.find((item) => !insights[item.id])?.id ??
-        'rate',
+        investigationDefinitions.find((item) => !investigationComplete(item.id))
+          ?.id ?? 'rate',
     );
+  const [circuitConnected, setCircuitConnected] = useState(false);
   const [guideBaseline, setGuideBaseline] = useState<ExperimentRecord | null>(
     null,
   );
@@ -1411,7 +1804,7 @@ function ExperimentStage({
   const activeDefinition =
     investigationDefinitions.find((item) => item.id === activeInvestigation) ??
     investigationDefinitions[0];
-  const activeComplete = insights[activeInvestigation];
+  const activeComplete = investigationComplete(activeInvestigation);
   const activeStalls = stallsByTask[activeInvestigation];
   const automaticHintLevel =
     activeStalls >= 6 ? 3 : activeStalls >= 4 ? 2 : activeStalls >= 2 ? 1 : 0;
@@ -1423,8 +1816,20 @@ function ExperimentStage({
     setup,
     guideBaseline,
   );
+  const transientSeries = findControlledActionSeries(
+    records,
+    'ring',
+    ringActions,
+  );
+  const awaitingEvidenceChain =
+    activeInvestigation === 'transient' &&
+    transientSeries.length === 3 &&
+    !transientChainSolved;
+  const evidenceChainReady = awaitingEvidenceChain && !pulsing;
   const nextInvestigation = activeComplete
-    ? (investigationDefinitions.find((item) => !insights[item.id]) ?? null)
+    ? (investigationDefinitions.find(
+        (item) => !investigationComplete(item.id),
+      ) ?? null)
     : null;
   const recentTaskRecords = records.filter(
     (record) => record.id > taskStartRecordId,
@@ -1447,14 +1852,108 @@ function ExperimentStage({
         guideBaseline ??
         (activeComplete ? (slotRecords.at(-1) ?? null) : null))
       : latestRecord;
-  const visibleAnnouncement =
-    labMode === 'guided' && !guidedLatest
+  const visibleAnnouncement = evidenceChainReady
+    ? '三个时刻都已留下记录。现在把它们组织成“动作发生—状态保持—动作撤销”的证据链。'
+    : labMode === 'guided' && !guidedLatest
       ? activeComplete
         ? '这组对照已经完成。你可以检查证据槽，或开始下一项调查。'
         : guideBaseline
           ? `记录 #${String(guideBaseline.id).padStart(2, '0')} 已复制为基准。现在只改变当前开放的变量。`
           : '点击一个空证据槽，实验台会准备当前步骤；你仍要亲自执行并观察。'
       : announcement;
+  const initialFaction = hypotheses.find(
+    (item) => item.id === selectedHypothesis,
+  )?.faction;
+  const narrativeBeat: NarrativeBeat = (() => {
+    if (labMode === 'free')
+      return {
+        speaker: 'guide',
+        name: '雾灯助手',
+        role: '现代观察员',
+        eyebrow: '自由实验 · 我只检查你的变量',
+        line: '装置已经全部解锁。每次实验后看一眼对照雷达：现象可以意外，条件必须说得清。',
+      };
+    if (activeInvestigation === 'transient') {
+      if (evidenceChainReady)
+        return {
+          speaker: 'guide',
+          name: '雾灯助手',
+          role: '时间线导航装置',
+          eyebrow: '新行动 · 组织证据',
+          line: '三次现象已经出现，但记录还只是散片。把它们按“发生—保持—撤销”排好，关系才会显现。',
+        };
+      if (transientChainSolved)
+        return {
+          speaker: 'fog',
+          name: '时间迷雾',
+          role: '替代解释制造者',
+          eyebrow: '新的质疑正在形成',
+          line: '漂亮的顺序。但指针反向，也可能只是你碰桌子的方向不同。你能把这个借口也堵住吗？',
+        };
+      if (!guidedLatest)
+        return {
+          speaker: 'faraday',
+          name: '迈克尔·法拉第',
+          role: '皇家研究院实验室 · 1831',
+          eyebrow: `现场尚无结论${initialFaction ? ` · 你暂时相信“${initialFaction}”` : ''}`,
+          line: '六年前，我盯着一套相似装置等了很久，什么也没看见。今天别只等——亲手改变它，然后盯住改变发生的那一瞬。',
+        };
+      if (guidedLatest.action === 'hold')
+        return {
+          speaker: 'faraday',
+          name: '迈克尔·法拉第',
+          role: '共同观察者',
+          eyebrow: `记录 #${String(guidedLatest.id).padStart(2, '0')} · 零结果也必须保存`,
+          line: '电池仍接着，铁环也没有消失，可指针回到了零。不要删掉“什么都没发生”——它也许正是最锋利的证据。',
+        };
+      if (guidedLatest.action === 'disconnect')
+        return {
+          speaker: 'faraday',
+          name: '迈克尔·法拉第',
+          role: '共同观察者',
+          eyebrow: `记录 #${String(guidedLatest.id).padStart(2, '0')} · 反向异常`,
+          line: '断开的瞬间，它竟朝相反方向摆了。先别命名这个现象，把接通、保持和断开的原始记录都留下。',
+        };
+      return {
+        speaker: 'faraday',
+        name: '迈克尔·法拉第',
+        role: '共同观察者',
+        eyebrow: `记录 #${String(guidedLatest.id).padStart(2, '0')} · 短暂异常`,
+        line: '看见了吗？它只猛然动了一下，又回到零位。我们还不知道原因，下一步要观察“持续不变”时会怎样。',
+      };
+    }
+    if (activeInvestigation === 'polarity')
+      return activeComplete
+        ? {
+            speaker: 'faraday',
+            name: '迈克尔·法拉第',
+            role: '共同检验者',
+            eyebrow: '替代解释受损',
+            line: '装置和动作都没变，只有电池方向反转，指针也随之反向。桌面震动很难解释这种对应。',
+          }
+        : {
+            speaker: 'fog',
+            name: '时间迷雾',
+            role: '替代解释制造者',
+            eyebrow: '挑战 · 排除机械震动',
+            line: '你看见了指针摆动，又怎样？也许只是手碰了桌子。复制一次实验，只反转电池方向给我看。',
+          };
+    if (activeInvestigation === 'magnetMotion')
+      return {
+        speaker: 'faraday',
+        name: '迈克尔·法拉第',
+        role: '共同检验者',
+        eyebrow: '新装置 · 切断导线联系',
+        line: '这次不用原线圈的电池。让磁铁运动、停下、再撤回；如果仍有信号，“沿铁环漏电”就无处藏身。',
+      };
+    return {
+      speaker: 'guide',
+      name: '雾灯助手',
+      role: '现代观察员',
+      eyebrow: '测量任务 · 从有无走向多少',
+      line: '最后别只问“有没有”。复制同一个动作，只改变运动速度，看看变化快慢是否会改变峰值。',
+    };
+  })();
 
   const beginInvestigation = (id: InvestigationId) => {
     setLabMode('guided');
@@ -1463,7 +1962,10 @@ function ExperimentStage({
     setManualHintLevel(0);
     setStallsByTask((current) => ({ ...current, [id]: 0 }));
     setTaskStartRecordId(records.at(-1)?.id ?? 0);
-    if (id === 'transient') onSetupChange(guidedRingSetup);
+    if (id === 'transient') {
+      setCircuitConnected(false);
+      onSetupChange(guidedRingSetup);
+    }
     if (id === 'magnetMotion') onSetupChange(guidedMagnetSetup);
   };
 
@@ -1474,8 +1976,8 @@ function ExperimentStage({
       return;
     }
     const next =
-      investigationDefinitions.find((item) => !insights[item.id])?.id ??
-      activeInvestigation;
+      investigationDefinitions.find((item) => !investigationComplete(item.id))
+        ?.id ?? activeInvestigation;
     beginInvestigation(next);
   };
 
@@ -1503,7 +2005,9 @@ function ExperimentStage({
   const selectEmptySlot = (index: number) => {
     if (activeComplete) return;
     if (activeInvestigation === 'transient') {
-      onSetupChange({ action: ringActions[index] });
+      const action = ringActions[index];
+      setCircuitConnected(action !== 'connect');
+      onSetupChange({ action });
       return;
     }
     if (activeInvestigation === 'magnetMotion') {
@@ -1523,9 +2027,11 @@ function ExperimentStage({
     }
     const missingIndex = slotRecords.findIndex((record) => !record);
     if (activeInvestigation === 'transient') {
+      const action = ringActions[Math.max(0, missingIndex)];
+      setCircuitConnected(action !== 'connect');
       onSetupChange({
         ...guidedRingSetup,
-        action: ringActions[Math.max(0, missingIndex)],
+        action,
       });
     } else {
       onSetupChange({
@@ -1545,31 +2051,35 @@ function ExperimentStage({
     return field === 'motionSpeed' && Boolean(guideBaseline);
   };
 
-  const guidedRunReady = (() => {
+  const guidedSetupReady = (candidate: ExperimentSetup) => {
     if (labMode === 'free') return true;
     if (activeComplete) return false;
-    if (activeInvestigation === 'transient') return setup.mode === 'ring';
-    if (activeInvestigation === 'magnetMotion') return setup.mode === 'magnet';
+    if (awaitingEvidenceChain) return false;
+    if (activeInvestigation === 'transient') return candidate.mode === 'ring';
+    if (activeInvestigation === 'magnetMotion')
+      return candidate.mode === 'magnet';
     if (!guideBaseline) return false;
     if (activeInvestigation === 'polarity')
       return (
-        recordMatchesSetupExcept(guideBaseline, setup, 'polarity') &&
-        setup.polarity !== guideBaseline.polarity
+        recordMatchesSetupExcept(guideBaseline, candidate, 'polarity') &&
+        candidate.polarity !== guideBaseline.polarity
       );
     return (
-      recordMatchesSetupExcept(guideBaseline, setup, 'motionSpeed') &&
-      setup.motionSpeed !== guideBaseline.motionSpeed
+      recordMatchesSetupExcept(guideBaseline, candidate, 'motionSpeed') &&
+      candidate.motionSpeed !== guideBaseline.motionSpeed
     );
-  })();
+  };
+  const guidedRunReady = guidedSetupReady(setup);
 
-  const runExperiment = () => {
-    if (!guidedRunReady || pulsing) return;
+  const runExperiment = (setupOverride?: ExperimentSetup) => {
+    const experimentSetup = setupOverride ?? setup;
+    if (!guidedSetupReady(experimentSetup) || pulsing) return;
     if (labMode === 'guided') {
       const actionIndex =
         activeInvestigation === 'transient'
-          ? ringActions.indexOf(setup.action as RingAction)
+          ? ringActions.indexOf(experimentSetup.action as RingAction)
           : activeInvestigation === 'magnetMotion'
-            ? magnetActions.indexOf(setup.action as MagnetAction)
+            ? magnetActions.indexOf(experimentSetup.action as MagnetAction)
             : -1;
       const expectedProgress =
         actionIndex < 0 || slotRecords[actionIndex] === null;
@@ -1580,7 +2090,14 @@ function ExperimentStage({
           : current[activeInvestigation] + 1,
       }));
     }
-    onRun();
+    onRun(experimentSetup);
+  };
+
+  const runCircuitAction = (action: RingAction) => {
+    const nextSetup: ExperimentSetup = { ...setup, mode: 'ring', action };
+    setCircuitConnected(action !== 'disconnect');
+    onSetupChange(nextSetup);
+    runExperiment(nextSetup);
   };
 
   const switchMode = (mode: ApparatusMode) => {
@@ -1646,12 +2163,12 @@ function ExperimentStage({
           </div>
           <div className="investigation-list">
             {investigationDefinitions.map((item, index) => {
-              const completed = insights[item.id];
+              const completed = investigationComplete(item.id);
               const unlocked =
                 index === 0 ||
                 investigationDefinitions
                   .slice(0, index)
-                  .every((previous) => insights[previous.id]);
+                  .every((previous) => investigationComplete(previous.id));
               return (
                 <button
                   type="button"
@@ -1719,7 +2236,15 @@ function ExperimentStage({
                   </span>
                 </button>
               ) : null}
-              {!activeComplete ? (
+              {evidenceChainReady ? (
+                <div className="chain-ready-note">
+                  <Notebook />
+                  <p>
+                    <strong>三张记录已经收齐</strong>
+                    前往实验台，把它们整理成有先后关系的证据链。
+                  </p>
+                </div>
+              ) : !activeComplete ? (
                 <div className="hint-ladder">
                   {hintLevel > 0 ? (
                     <p>
@@ -1799,6 +2324,7 @@ function ExperimentStage({
         </aside>
 
         <div className="lab-workbench">
+          <NarrativeDirector beat={narrativeBeat} pulsing={pulsing} />
           <div
             className="apparatus-tabs"
             role="tablist"
@@ -1845,10 +2371,29 @@ function ExperimentStage({
             教学模型使用相对刻度，并暂时省略随机误差；真实实验需要重复测量并报告不确定度。
           </p>
 
+          {evidenceChainReady ? (
+            <EvidenceChainChallenge
+              records={transientSeries}
+              onSolved={onTransientChainSolved}
+            />
+          ) : null}
+
+          {labMode === 'guided' &&
+          activeInvestigation === 'transient' &&
+          !activeComplete &&
+          !awaitingEvidenceChain ? (
+            <CircuitGestureControl
+              connected={circuitConnected}
+              disabled={pulsing}
+              onConnectionChange={(connected) =>
+                runCircuitAction(connected ? 'connect' : 'disconnect')
+              }
+              onHold={() => runCircuitAction('hold')}
+            />
+          ) : null}
+
           <div className="lab-controls">
-            {labMode === 'free' ||
-            activeInvestigation === 'transient' ||
-            activeInvestigation === 'magnetMotion' ? (
+            {labMode === 'free' || activeInvestigation === 'magnetMotion' ? (
               <div
                 className={`control-group control-group--wide ${controlEnabled('action') ? '' : 'is-locked'}`}
               >
@@ -2006,32 +2551,34 @@ function ExperimentStage({
               </p>
             </div>
           ) : null}
-          <div className="lab-run-actions">
-            <Button
-              className="primary-cta lab-run-button"
-              size="lg"
-              disabled={pulsing || !guidedRunReady}
-              onClick={runExperiment}
-            >
-              <Play />{' '}
-              {pulsing
-                ? '仪器正在记录…'
-                : labMode === 'guided' && activeComplete
-                  ? '此项已完成，请开始下一项'
-                  : labMode === 'guided' && !guidedRunReady
-                    ? '先准备一组单变量对照'
-                    : `执行：${actionLabels[setup.action]}`}
-            </Button>
-            {labMode === 'free' && freeLatest ? (
+          {labMode !== 'guided' || activeInvestigation !== 'transient' ? (
+            <div className="lab-run-actions">
               <Button
-                variant="outline"
+                className="primary-cta lab-run-button"
                 size="lg"
-                onClick={() => onSetupChange(setupFromRecord(freeLatest))}
+                disabled={pulsing || !guidedRunReady}
+                onClick={() => runExperiment()}
               >
-                <Copy /> 复制最近实验
+                <Play />{' '}
+                {pulsing
+                  ? '仪器正在记录…'
+                  : labMode === 'guided' && activeComplete
+                    ? '此项已完成，请开始下一项'
+                    : labMode === 'guided' && !guidedRunReady
+                      ? '先准备一组单变量对照'
+                      : `执行：${actionLabels[setup.action]}`}
               </Button>
-            ) : null}
-          </div>
+              {labMode === 'free' && freeLatest ? (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={() => onSetupChange(setupFromRecord(freeLatest))}
+                >
+                  <Copy /> 复制最近实验
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         <aside className="lab-notebook">
@@ -2406,7 +2953,7 @@ function CourtStage({
           </div>
           <Progress value={bossHp} aria-label="迷雾解释力" />
           <div className={`claim-card ${roundSolved ? 'is-defeated' : ''}`}>
-            <span>{roundSolved ? <CheckCircle2 /> : <CloudFog />}</span>
+            <StoryPortrait speaker={roundSolved ? 'faraday' : 'fog'} />
             <div>
               <small>{roundSolved ? '解释已被排除' : '迷雾提出替代解释'}</small>
               <h2>{claim.title}</h2>
@@ -2909,6 +3456,7 @@ export default function Expedition() {
   const [latestRecord, setLatestRecord] = useState<ExperimentRecord | null>(
     null,
   );
+  const [transientChainSolved, setTransientChainSolved] = useState(false);
   const [pulsing, setPulsing] = useState(false);
   const [announcement, setAnnouncement] = useState(
     '仪器归零。请选择条件并执行第一次实验。',
@@ -2967,6 +3515,7 @@ export default function Expedition() {
     setSetup(initialSetup);
     setRecords([]);
     setLatestRecord(null);
+    setTransientChainSolved(false);
     setPulsing(false);
     setAnnouncement('仪器归零。请选择条件并执行第一次实验。');
   };
@@ -2981,7 +3530,7 @@ export default function Expedition() {
         name: 'start_faraday_expedition',
         title: '开始法拉第科学历险',
         description:
-          '打开“只动一下的指针”任务，从初始猜想进入四段引导式探究，并可随时切换自由实验。',
+          '打开“只动一下的指针”任务，从初始猜想进入四段引导式探究；首段包含角色互动、导线操作和证据链重建，并可随时切换自由实验。',
         inputSchema: {
           type: 'object',
           properties: {},
@@ -3050,13 +3599,15 @@ export default function Expedition() {
   };
   const updateSetup = (patch: Partial<ExperimentSetup>) =>
     setSetup((current) => ({ ...current, ...patch }));
-  const runExperiment = () => {
+  const runExperiment = (setupOverride?: ExperimentSetup) => {
     if (pulsing) return;
-    const result = simulateExperiment(setup);
+    const activeSetup = setupOverride ?? setup;
+    const result = simulateExperiment(activeSetup);
     const nextRecord: ExperimentRecord = {
       id: recordId.current + 1,
       ...result,
     };
+    setSetup(activeSetup);
     recordId.current = nextRecord.id;
     const repeated = records.some(
       (record) => record.signature === nextRecord.signature,
@@ -3101,10 +3652,16 @@ export default function Expedition() {
           setup={setup}
           records={records}
           latestRecord={latestRecord}
+          selectedHypothesis={selectedHypothesis}
+          transientChainSolved={transientChainSolved}
           pulsing={pulsing}
           announcement={announcement}
           onSetupChange={updateSetup}
           onRun={runExperiment}
+          onTransientChainSolved={() => {
+            setTransientChainSolved(true);
+            awardXp(12);
+          }}
           onCourt={() => setMissionStage('court')}
           onBack={openMap}
         />
