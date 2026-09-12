@@ -15,6 +15,7 @@ import {
   ChevronRight,
   CloudFog,
   Compass,
+  Copy,
   ExternalLink,
   FileText,
   FlaskConical,
@@ -62,6 +63,8 @@ type CoreMaterial = 'iron' | 'copper' | 'air';
 type Polarity = 'normal' | 'reversed';
 type SignalDirection = 'left' | 'right' | 'none';
 type ArchiveView = 'history' | 'mine' | 'community';
+type LabMode = 'guided' | 'free';
+type InvestigationId = 'transient' | 'polarity' | 'magnetMotion' | 'rate';
 
 type ExperimentSetup = {
   mode: ApparatusMode;
@@ -115,8 +118,6 @@ type HistoryNode = {
     | 'invention'
     | 'publication';
 };
-
-type Insights = ReturnType<typeof getInsights>;
 
 const STORAGE_KEY = 'science-time-fog-progress-v2';
 
@@ -428,56 +429,106 @@ function sameContextExcept(
   );
 }
 
-function hasControlledActionSeries(
+function findControlledActionSeries(
   records: ExperimentRecord[],
   mode: ApparatusMode,
   actions: ExperimentAction[],
 ) {
   const candidates = records.filter((record) => record.mode === mode);
-  return candidates.some((baseline) =>
-    actions.every((action) =>
-      candidates.some(
+  for (const baseline of candidates) {
+    const series = actions.map((action) =>
+      candidates.find(
         (candidate) =>
           candidate.action === action &&
           sameContextExcept(baseline, candidate, 'action'),
       ),
-    ),
+    );
+    if (series.every(Boolean)) return series as ExperimentRecord[];
+  }
+  return [];
+}
+
+function findPolarityPair(records: ExperimentRecord[]) {
+  for (let index = 0; index < records.length; index += 1) {
+    const first = records[index];
+    const second = records
+      .slice(index + 1)
+      .find(
+        (candidate) =>
+          sameContextExcept(first, candidate, 'polarity') &&
+          candidate.polarity !== first.polarity &&
+          candidate.direction !== first.direction,
+      );
+    if (second) return [first, second];
+  }
+  return [];
+}
+
+function findRatePair(records: ExperimentRecord[]) {
+  for (let index = 0; index < records.length; index += 1) {
+    const first = records[index];
+    const second = records
+      .slice(index + 1)
+      .find(
+        (candidate) =>
+          first.mode === 'magnet' &&
+          candidate.mode === 'magnet' &&
+          sameContextExcept(first, candidate, 'motionSpeed') &&
+          candidate.motionSpeed !== first.motionSpeed &&
+          candidate.strength !== first.strength,
+      );
+    if (second) return [first, second];
+  }
+  return [];
+}
+
+function recordMatchesSetupExcept(
+  record: ExperimentRecord,
+  setup: ExperimentSetup,
+  ignoredField: RelevantField,
+) {
+  return (
+    record.mode === setup.mode &&
+    relevantFieldsFor(setup.mode).every(
+      (field) => field === ignoredField || record[field] === setup[field],
+    )
   );
 }
 
+function latestMatching(
+  records: ExperimentRecord[],
+  predicate: (record: ExperimentRecord) => boolean,
+) {
+  return [...records].reverse().find(predicate) ?? null;
+}
+
+function setupFromRecord(record: ExperimentRecord): ExperimentSetup {
+  return {
+    mode: record.mode,
+    action: record.action,
+    core: record.core,
+    polarity: record.polarity,
+    turns: record.turns,
+    batteryPairs: record.batteryPairs,
+    motionSpeed: record.motionSpeed,
+  };
+}
+
 function getInsights(records: ExperimentRecord[]) {
-  const transient = hasControlledActionSeries(records, 'ring', [
-    'connect',
-    'hold',
-    'disconnect',
-  ]);
-  const magnetMotion = hasControlledActionSeries(records, 'magnet', [
-    'insert',
-    'hold',
-    'withdraw',
-  ]);
-  const polarity = records.some((record, index) =>
-    records
-      .slice(index + 1)
-      .some(
-        (candidate) =>
-          sameContextExcept(record, candidate, 'polarity') &&
-          candidate.polarity !== record.polarity &&
-          candidate.direction !== record.direction,
-      ),
-  );
-  const rate = records.some((record, index) =>
-    records
-      .slice(index + 1)
-      .some(
-        (candidate) =>
-          record.mode === 'magnet' &&
-          candidate.mode === 'magnet' &&
-          sameContextExcept(record, candidate, 'motionSpeed') &&
-          candidate.motionSpeed !== record.motionSpeed &&
-          candidate.strength !== record.strength,
-      ),
-  );
+  const transient =
+    findControlledActionSeries(records, 'ring', [
+      'connect',
+      'hold',
+      'disconnect',
+    ]).length === 3;
+  const magnetMotion =
+    findControlledActionSeries(records, 'magnet', [
+      'insert',
+      'hold',
+      'withdraw',
+    ]).length === 3;
+  const polarity = findPolarityPair(records).length === 2;
+  const rate = findRatePair(records).length === 2;
   const core = records.some((record, index) =>
     records
       .slice(index + 1)
@@ -588,7 +639,7 @@ function IntroScreen({
           <Button className="primary-cta" size="lg" onClick={onLaunch}>
             {portalReady ? '穿过时间迷雾' : '启动时间入口'} <ArrowRight />
           </Button>
-          <span>首关约 15 分钟 · 无需预备知识</span>
+          <span>引导主线约 10 分钟 · 无需预备知识</span>
         </div>
         <div className="mission-coordinate">
           <FlaskConical />
@@ -723,7 +774,7 @@ function MapScreen({
           </p>
           <div className="mission-card__rewards">
             <span>
-              <Gauge /> 15 分钟
+              <Gauge /> 约 10 分钟
             </span>
             <span>
               <Notebook /> 实验日志
@@ -989,39 +1040,326 @@ function LabApparatus({
   );
 }
 
-const insightDefinitions: Array<{
-  id: keyof Insights;
+type InvestigationDefinition = {
+  id: InvestigationId;
   title: string;
-  description: string;
-  optional?: boolean;
-}> = [
+  question: string;
+  method: string;
+  slotLabels: string[];
+  hints: [string, string, string];
+};
+
+const investigationDefinitions: InvestigationDefinition[] = [
   {
     id: 'transient',
-    title: '追踪三个时刻',
-    description: '比较接通、持续和断开。',
+    title: '捕捉三个时刻',
+    question: '指针究竟在什么时候运动？',
+    method:
+      '装置条件已经固定。依次比较接通、保持和断开，观察“零结果”是否也在说话。',
+    slotLabels: ['接通电池', '保持不动', '断开电池'],
+    hints: [
+      '先点击一个空证据槽，实验台会替你选中相应动作。',
+      '三个实验只需要改变“动作”，材料、方向、匝数和电池规模都不要动。',
+      '点击“帮我摆好下一步”，系统只准备装置，现象仍由你亲自观察。',
+    ],
   },
   {
     id: 'polarity',
-    title: '排除机械震动',
-    description: '只反转电池或磁极，再做同一动作。',
+    title: '追查偏转方向',
+    question: '如果只是桌面震动，换个电池方向会怎样？',
+    method: '复制一条已经出现偏转的记录，只反转电池方向，再做完全相同的动作。',
+    slotLabels: ['原方向 · 基准', '反转方向 · 对照'],
+    hints: [
+      '先复制基准记录，这会保留它的全部实验条件。',
+      '复制后只开放“电池方向”，其他旋钮会继续锁定。',
+      '点击“帮我摆好下一步”，系统会复制基准并选中相反方向。',
+    ],
   },
   {
     id: 'magnetMotion',
-    title: '切断“漏电”退路',
-    description: '不用原线圈电池，改用磁铁运动。',
+    title: '切断漏电退路',
+    question: '不用原线圈的电池，还能让指针运动吗？',
+    method:
+      '换成磁铁与线圈，依次比较推入、静止和抽出。磁铁与线圈没有导线接触。',
+    slotLabels: ['推入磁铁', '保持静止', '抽出磁铁'],
+    hints: [
+      '点击空证据槽，系统会替你选中推入、静止或抽出。',
+      '保持磁极、匝数和速度不变，只改变磁铁正在做什么。',
+      '点击“帮我摆好下一步”，系统会找到当前还缺少的动作。',
+    ],
   },
   {
     id: 'rate',
-    title: '量化变化快慢',
-    description: '只改变磁铁运动速度，比较峰值。',
-  },
-  {
-    id: 'core',
-    title: '检查材料作用',
-    description: '只更换铁环、铜环或空气。',
-    optional: true,
+    title: '测量变化快慢',
+    question: '磁铁移动得更快，偏转会不会更明显？',
+    method: '复制一条磁铁运动记录，只改变运动速度，然后比较两次峰值。',
+    slotLabels: ['原速度 · 基准', '不同速度 · 对照'],
+    hints: [
+      '先复制一条磁铁正在运动、指针确实偏转的记录。',
+      '复制后只开放速度滑杆；动作、磁极和匝数保持不变。',
+      '点击“帮我摆好下一步”，系统会复制基准并选择另一个速度。',
+    ],
   },
 ];
+
+const guidedRingSetup: ExperimentSetup = {
+  mode: 'ring',
+  action: 'connect',
+  core: 'iron',
+  polarity: 'normal',
+  turns: 2,
+  batteryPairs: 10,
+  motionSpeed: 3,
+};
+
+const guidedMagnetSetup: ExperimentSetup = {
+  mode: 'magnet',
+  action: 'insert',
+  core: 'iron',
+  polarity: 'normal',
+  turns: 2,
+  batteryPairs: 10,
+  motionSpeed: 3,
+};
+
+const ringActions: RingAction[] = ['connect', 'hold', 'disconnect'];
+const magnetActions: MagnetAction[] = ['insert', 'hold', 'withdraw'];
+
+const fieldLabels: Record<RelevantField, string> = {
+  action: '动作',
+  core: '环芯材料',
+  polarity: '方向',
+  turns: '线圈匝数',
+  batteryPairs: '电池规模',
+  motionSpeed: '运动速度',
+};
+
+function signalLabel(record: ExperimentRecord) {
+  if (record.direction === 'none') return '零';
+  return `${record.direction === 'right' ? '＋' : '−'}${record.strength}`;
+}
+
+function suggestedBaselineFor(
+  id: InvestigationId,
+  records: ExperimentRecord[],
+) {
+  if (id === 'polarity') {
+    const series = findControlledActionSeries(records, 'ring', [
+      'connect',
+      'hold',
+      'disconnect',
+    ]);
+    return (
+      series.find((record) => record.strength > 0) ??
+      latestMatching(
+        records,
+        (record) => record.mode === 'ring' && record.strength > 0,
+      )
+    );
+  }
+  if (id === 'rate') {
+    const series = findControlledActionSeries(records, 'magnet', [
+      'insert',
+      'hold',
+      'withdraw',
+    ]);
+    return (
+      series.find((record) => record.strength > 0) ??
+      latestMatching(
+        records,
+        (record) => record.mode === 'magnet' && record.strength > 0,
+      )
+    );
+  }
+  return null;
+}
+
+function investigationSlotRecords(
+  id: InvestigationId,
+  records: ExperimentRecord[],
+  setup: ExperimentSetup,
+  guideBaseline: ExperimentRecord | null,
+): Array<ExperimentRecord | null> {
+  if (id === 'transient') {
+    const complete = findControlledActionSeries(records, 'ring', ringActions);
+    if (complete.length) return complete;
+    const context = setup.mode === 'ring' ? setup : guidedRingSetup;
+    return ringActions.map((action) =>
+      latestMatching(
+        records,
+        (record) =>
+          record.action === action &&
+          recordMatchesSetupExcept(record, context, 'action'),
+      ),
+    );
+  }
+  if (id === 'magnetMotion') {
+    const complete = findControlledActionSeries(
+      records,
+      'magnet',
+      magnetActions,
+    );
+    if (complete.length) return complete;
+    const context = setup.mode === 'magnet' ? setup : guidedMagnetSetup;
+    return magnetActions.map((action) =>
+      latestMatching(
+        records,
+        (record) =>
+          record.action === action &&
+          recordMatchesSetupExcept(record, context, 'action'),
+      ),
+    );
+  }
+  if (id === 'polarity') {
+    const complete = findPolarityPair(records);
+    if (complete.length)
+      return [...complete].sort((first, second) =>
+        first.polarity === second.polarity
+          ? 0
+          : first.polarity === 'normal'
+            ? -1
+            : 1,
+      );
+    const baseline = guideBaseline ?? suggestedBaselineFor(id, records);
+    if (!baseline) return [null, null];
+    const comparison = latestMatching(
+      records,
+      (record) =>
+        record.id !== baseline.id &&
+        record.polarity !== baseline.polarity &&
+        record.direction !== baseline.direction &&
+        sameContextExcept(baseline, record, 'polarity'),
+    );
+    return [baseline, comparison];
+  }
+  const complete = findRatePair(records);
+  if (complete.length)
+    return [...complete].sort(
+      (first, second) => first.motionSpeed - second.motionSpeed,
+    );
+  const baseline = guideBaseline ?? suggestedBaselineFor(id, records);
+  if (!baseline) return [null, null];
+  const comparison = latestMatching(
+    records,
+    (record) =>
+      record.id !== baseline.id &&
+      record.motionSpeed !== baseline.motionSpeed &&
+      record.strength !== baseline.strength &&
+      sameContextExcept(baseline, record, 'motionSpeed'),
+  );
+  return [baseline, comparison];
+}
+
+function ControlHeader({ label, locked }: { label: string; locked: boolean }) {
+  return (
+    <div className="control-group__header">
+      <span className="control-label">{label}</span>
+      {locked ? (
+        <em>
+          <LockKeyhole /> 引导锁定
+        </em>
+      ) : null}
+    </div>
+  );
+}
+
+function EvidenceSlots({
+  definition,
+  records,
+  onSelectEmpty,
+}: {
+  definition: InvestigationDefinition;
+  records: Array<ExperimentRecord | null>;
+  onSelectEmpty: (index: number) => void;
+}) {
+  return (
+    <div className="evidence-slots" aria-label={`${definition.title}证据槽`}>
+      {definition.slotLabels.map((label, index) => {
+        const record = records[index];
+        return (
+          <button
+            type="button"
+            className={record ? 'is-filled' : ''}
+            key={label}
+            onClick={() => onSelectEmpty(index)}
+            disabled={Boolean(record)}
+          >
+            <span>{record ? <Check /> : index + 1}</span>
+            <div>
+              <small>{label}</small>
+              <strong>
+                {record
+                  ? `记录 #${String(record.id).padStart(2, '0')} · ${signalLabel(record)}`
+                  : '点击准备这次实验'}
+              </strong>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function VariableDiffRadar({
+  baseline,
+  latest,
+}: {
+  baseline: ExperimentRecord | null;
+  latest: ExperimentRecord | null;
+}) {
+  if (!latest) {
+    return (
+      <div className="variable-radar variable-radar--empty">
+        <Scale />
+        <p>
+          <strong>对照雷达等待记录</strong>
+          做完实验后，这里会直接告诉你改变了几个条件。
+        </p>
+      </div>
+    );
+  }
+  if (!baseline || baseline.mode !== latest.mode) {
+    return (
+      <div className="variable-radar variable-radar--baseline">
+        <Scale />
+        <p>
+          <strong>基准记录 #{String(latest.id).padStart(2, '0')} 已建立</strong>
+          下一次尽量只改变一个条件，它才能成为有力量的对照。
+        </p>
+      </div>
+    );
+  }
+  const changed = relevantFieldsFor(latest.mode).filter(
+    (field) => baseline[field] !== latest[field],
+  );
+  const unchanged = relevantFieldsFor(latest.mode).filter(
+    (field) => baseline[field] === latest[field],
+  );
+  const state =
+    changed.length === 1 ? 'controlled' : changed.length ? 'mixed' : 'repeat';
+  const heading =
+    state === 'controlled'
+      ? `合格对照：只改变了${fieldLabels[changed[0]]}`
+      : state === 'repeat'
+        ? '重复实验：所有条件相同'
+        : `迷雾干扰：同时改变了 ${changed.length} 个条件`;
+  return (
+    <div className={`variable-radar variable-radar--${state}`}>
+      <Scale />
+      <div>
+        <strong>{heading}</strong>
+        <p>
+          保持不变：
+          {unchanged.map((field) => fieldLabels[field]).join('、') || '无'}
+        </p>
+        <span>
+          #{String(baseline.id).padStart(2, '0')} {signalLabel(baseline)} → #
+          {String(latest.id).padStart(2, '0')} {signalLabel(latest)}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 function ExperimentStage({
   setup,
@@ -1050,22 +1388,203 @@ function ExperimentStage({
     insights.polarity &&
     insights.magnetMotion &&
     insights.rate;
-  const completedCount = insightDefinitions.filter(
+  const completedCount = investigationDefinitions.filter(
     (item) => insights[item.id],
   ).length;
-  const ringActions: RingAction[] = ['connect', 'hold', 'disconnect'];
-  const magnetActions: MagnetAction[] = ['insert', 'hold', 'withdraw'];
-  const nextHint = !insights.transient
-    ? '先用感应环分别记录接通、保持和断开。'
-    : !insights.polarity
-      ? '保持其他条件不变，只反转电池方向，再重复一个动作。'
-      : !insights.magnetMotion
-        ? '切换到磁铁与线圈，比较推入、静止和抽出。'
-        : !insights.rate
-          ? '用相同磁极做两次相同运动，只改变速度。'
-          : '核心证据完整。你可以继续寻找材料效应，或进入科学质询。';
+  const [labMode, setLabMode] = useState<LabMode>('guided');
+  const [activeInvestigation, setActiveInvestigation] =
+    useState<InvestigationId>(
+      () =>
+        investigationDefinitions.find((item) => !insights[item.id])?.id ??
+        'rate',
+    );
+  const [guideBaseline, setGuideBaseline] = useState<ExperimentRecord | null>(
+    null,
+  );
+  const [taskStartRecordId, setTaskStartRecordId] = useState(
+    records.at(-1)?.id ?? 0,
+  );
+  const [manualHintLevel, setManualHintLevel] = useState(0);
+  const [stallsByTask, setStallsByTask] = useState<
+    Record<InvestigationId, number>
+  >({ transient: 0, polarity: 0, magnetMotion: 0, rate: 0 });
+  const activeDefinition =
+    investigationDefinitions.find((item) => item.id === activeInvestigation) ??
+    investigationDefinitions[0];
+  const activeComplete = insights[activeInvestigation];
+  const activeStalls = stallsByTask[activeInvestigation];
+  const automaticHintLevel =
+    activeStalls >= 6 ? 3 : activeStalls >= 4 ? 2 : activeStalls >= 2 ? 1 : 0;
+  const hintLevel = Math.max(manualHintLevel, automaticHintLevel);
+  const suggestedBaseline = suggestedBaselineFor(activeInvestigation, records);
+  const slotRecords = investigationSlotRecords(
+    activeInvestigation,
+    records,
+    setup,
+    guideBaseline,
+  );
+  const nextInvestigation = activeComplete
+    ? (investigationDefinitions.find((item) => !insights[item.id]) ?? null)
+    : null;
+  const recentTaskRecords = records.filter(
+    (record) => record.id > taskStartRecordId,
+  );
+  const guidedLatest = recentTaskRecords.at(-1) ?? null;
+  const guidedRadarBaseline =
+    guideBaseline && guidedLatest?.id !== guideBaseline.id
+      ? guideBaseline
+      : (recentTaskRecords.at(-2) ?? null);
+  const freeLatest = records.at(-1) ?? null;
+  const freeRadarBaseline = freeLatest
+    ? latestMatching(
+        records.filter((record) => record.id < freeLatest.id),
+        (record) => record.mode === freeLatest.mode,
+      )
+    : null;
+  const displayedRecord =
+    labMode === 'guided'
+      ? (guidedLatest ??
+        guideBaseline ??
+        (activeComplete ? (slotRecords.at(-1) ?? null) : null))
+      : latestRecord;
+  const visibleAnnouncement =
+    labMode === 'guided' && !guidedLatest
+      ? activeComplete
+        ? '这组对照已经完成。你可以检查证据槽，或开始下一项调查。'
+        : guideBaseline
+          ? `记录 #${String(guideBaseline.id).padStart(2, '0')} 已复制为基准。现在只改变当前开放的变量。`
+          : '点击一个空证据槽，实验台会准备当前步骤；你仍要亲自执行并观察。'
+      : announcement;
+
+  const beginInvestigation = (id: InvestigationId) => {
+    setLabMode('guided');
+    setActiveInvestigation(id);
+    setGuideBaseline(null);
+    setManualHintLevel(0);
+    setStallsByTask((current) => ({ ...current, [id]: 0 }));
+    setTaskStartRecordId(records.at(-1)?.id ?? 0);
+    if (id === 'transient') onSetupChange(guidedRingSetup);
+    if (id === 'magnetMotion') onSetupChange(guidedMagnetSetup);
+  };
+
+  const chooseLabMode = (mode: LabMode) => {
+    if (mode === 'free') {
+      setLabMode('free');
+      setGuideBaseline(null);
+      return;
+    }
+    const next =
+      investigationDefinitions.find((item) => !insights[item.id])?.id ??
+      activeInvestigation;
+    beginInvestigation(next);
+  };
+
+  const copyBaseline = (record: ExperimentRecord) => {
+    setGuideBaseline(record);
+    onSetupChange(setupFromRecord(record));
+  };
+
+  const prepareComparison = (
+    id: InvestigationId,
+    baseline: ExperimentRecord,
+  ) => {
+    setGuideBaseline(baseline);
+    const nextSetup = setupFromRecord(baseline);
+    if (id === 'polarity') {
+      nextSetup.polarity =
+        baseline.polarity === 'normal' ? 'reversed' : 'normal';
+    }
+    if (id === 'rate') {
+      nextSetup.motionSpeed = baseline.motionSpeed >= 4 ? 1 : 5;
+    }
+    onSetupChange(nextSetup);
+  };
+
+  const selectEmptySlot = (index: number) => {
+    if (activeComplete) return;
+    if (activeInvestigation === 'transient') {
+      onSetupChange({ action: ringActions[index] });
+      return;
+    }
+    if (activeInvestigation === 'magnetMotion') {
+      onSetupChange({ action: magnetActions[index] });
+      return;
+    }
+    const baseline = guideBaseline ?? suggestedBaseline;
+    if (index === 1 && baseline)
+      prepareComparison(activeInvestigation, baseline);
+  };
+
+  const prepareNextStep = () => {
+    if (activeInvestigation === 'polarity' || activeInvestigation === 'rate') {
+      const baseline = guideBaseline ?? suggestedBaseline;
+      if (baseline) prepareComparison(activeInvestigation, baseline);
+      return;
+    }
+    const missingIndex = slotRecords.findIndex((record) => !record);
+    if (activeInvestigation === 'transient') {
+      onSetupChange({
+        ...guidedRingSetup,
+        action: ringActions[Math.max(0, missingIndex)],
+      });
+    } else {
+      onSetupChange({
+        ...guidedMagnetSetup,
+        action: magnetActions[Math.max(0, missingIndex)],
+      });
+    }
+  };
+
+  const controlEnabled = (field: RelevantField) => {
+    if (labMode === 'free') return true;
+    if (activeComplete) return false;
+    if (activeInvestigation === 'transient') return field === 'action';
+    if (activeInvestigation === 'magnetMotion') return field === 'action';
+    if (activeInvestigation === 'polarity')
+      return field === 'polarity' && Boolean(guideBaseline);
+    return field === 'motionSpeed' && Boolean(guideBaseline);
+  };
+
+  const guidedRunReady = (() => {
+    if (labMode === 'free') return true;
+    if (activeComplete) return false;
+    if (activeInvestigation === 'transient') return setup.mode === 'ring';
+    if (activeInvestigation === 'magnetMotion') return setup.mode === 'magnet';
+    if (!guideBaseline) return false;
+    if (activeInvestigation === 'polarity')
+      return (
+        recordMatchesSetupExcept(guideBaseline, setup, 'polarity') &&
+        setup.polarity !== guideBaseline.polarity
+      );
+    return (
+      recordMatchesSetupExcept(guideBaseline, setup, 'motionSpeed') &&
+      setup.motionSpeed !== guideBaseline.motionSpeed
+    );
+  })();
+
+  const runExperiment = () => {
+    if (!guidedRunReady || pulsing) return;
+    if (labMode === 'guided') {
+      const actionIndex =
+        activeInvestigation === 'transient'
+          ? ringActions.indexOf(setup.action as RingAction)
+          : activeInvestigation === 'magnetMotion'
+            ? magnetActions.indexOf(setup.action as MagnetAction)
+            : -1;
+      const expectedProgress =
+        actionIndex < 0 || slotRecords[actionIndex] === null;
+      setStallsByTask((current) => ({
+        ...current,
+        [activeInvestigation]: expectedProgress
+          ? 0
+          : current[activeInvestigation] + 1,
+      }));
+    }
+    onRun();
+  };
 
   const switchMode = (mode: ApparatusMode) => {
+    if (labMode === 'guided') return;
     onSetupChange({ mode, action: mode === 'ring' ? 'connect' : 'insert' });
   };
 
@@ -1085,7 +1604,7 @@ function ExperimentStage({
           <span>档案馆</span>
         </div>
         <Badge className="bg-amber-300 text-slate-950">
-          行动 02 · 自由实验
+          行动 02 · {labMode === 'guided' ? '引导式探究' : '自由实验'}
         </Badge>
       </div>
       <div className="lab-v2__heading">
@@ -1096,9 +1615,9 @@ function ExperimentStage({
           <h1 id="lab-title">不要找答案，找能区分解释的实验</h1>
         </div>
         <div className="lab-v2__progress">
-          <span>发现任务</span>
-          <strong>{completedCount}/5</strong>
-          <Progress value={completedCount * 20} aria-label="发现任务进度" />
+          <span>主线调查</span>
+          <strong>{completedCount}/4</strong>
+          <Progress value={completedCount * 25} aria-label="主线调查进度" />
         </div>
       </div>
 
@@ -1107,35 +1626,163 @@ function ExperimentStage({
           <div className="panel-kicker">
             <Search /> 调查板
           </div>
-          <p className="inquiry-board__hint">{nextHint}</p>
-          <div className="insight-list">
-            {insightDefinitions.map((item) => (
-              <div
-                className={`insight-item ${insights[item.id] ? 'is-found' : ''}`}
-                key={item.id}
-              >
-                <span>
-                  {insights[item.id] ? <Check /> : item.optional ? '＋' : '?'}
-                </span>
-                <div>
-                  <strong>
-                    {item.title}
-                    {item.optional ? ' · 可选' : ''}
-                  </strong>
-                  <small>
-                    {insights[item.id]
-                      ? '已经形成可比较的证据组。'
-                      : item.description}
-                  </small>
-                </div>
-              </div>
-            ))}
+          <div className="lab-mode-switch" aria-label="选择实验方式">
+            <button
+              type="button"
+              className={labMode === 'guided' ? 'is-active' : ''}
+              aria-pressed={labMode === 'guided'}
+              onClick={() => chooseLabMode('guided')}
+            >
+              <Compass /> 主线引导
+            </button>
+            <button
+              type="button"
+              className={labMode === 'free' ? 'is-active' : ''}
+              aria-pressed={labMode === 'free'}
+              onClick={() => chooseLabMode('free')}
+            >
+              <Sparkles /> 自由探索
+            </button>
           </div>
+          <div className="investigation-list">
+            {investigationDefinitions.map((item, index) => {
+              const completed = insights[item.id];
+              const unlocked =
+                index === 0 ||
+                investigationDefinitions
+                  .slice(0, index)
+                  .every((previous) => insights[previous.id]);
+              return (
+                <button
+                  type="button"
+                  className={`${completed ? 'is-complete' : ''} ${activeInvestigation === item.id && labMode === 'guided' ? 'is-active' : ''}`}
+                  key={item.id}
+                  disabled={!unlocked}
+                  onClick={() => beginInvestigation(item.id)}
+                  aria-current={
+                    activeInvestigation === item.id && labMode === 'guided'
+                      ? 'step'
+                      : undefined
+                  }
+                >
+                  <span>
+                    {completed ? (
+                      <Check />
+                    ) : unlocked ? (
+                      String(index + 1).padStart(2, '0')
+                    ) : (
+                      <LockKeyhole />
+                    )}
+                  </span>
+                  <div>
+                    <small>调查 {index + 1}/4</small>
+                    <strong>{item.title}</strong>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {labMode === 'guided' ? (
+            <div className="active-investigation">
+              <div className="guide-companion">
+                <Compass />
+                <p>
+                  <small>雾灯助手 · 只提示方法</small>
+                  <strong>{activeDefinition.question}</strong>
+                </p>
+              </div>
+              <p className="active-investigation__method">
+                {activeDefinition.method}
+              </p>
+              <EvidenceSlots
+                definition={activeDefinition}
+                records={slotRecords}
+                onSelectEmpty={selectEmptySlot}
+              />
+              {(activeInvestigation === 'polarity' ||
+                activeInvestigation === 'rate') &&
+              !activeComplete &&
+              !guideBaseline &&
+              suggestedBaseline ? (
+                <button
+                  type="button"
+                  className="copy-baseline-button"
+                  onClick={() => copyBaseline(suggestedBaseline)}
+                >
+                  <Copy />
+                  <span>
+                    <strong>
+                      复制记录 #{String(suggestedBaseline.id).padStart(2, '0')}
+                    </strong>
+                    <small>全部条件保持不变，再只改一个变量</small>
+                  </span>
+                </button>
+              ) : null}
+              {!activeComplete ? (
+                <div className="hint-ladder">
+                  {hintLevel > 0 ? (
+                    <p>
+                      <Lightbulb />
+                      <span>{activeDefinition.hints[hintLevel - 1]}</span>
+                    </p>
+                  ) : null}
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setManualHintLevel(Math.min(3, hintLevel + 1))
+                      }
+                      disabled={hintLevel >= 3}
+                    >
+                      {hintLevel ? '再给一点提示' : '给我一点提示'}
+                    </button>
+                    {hintLevel >= 2 ? (
+                      <button type="button" onClick={prepareNextStep}>
+                        帮我摆好下一步
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                <div className="investigation-success">
+                  <CheckCircle2 />
+                  <p>
+                    <strong>这组证据已经闭合</strong>
+                    你不是猜中了答案，而是完成了一次可以检查的比较。
+                  </p>
+                </div>
+              )}
+              {activeComplete && nextInvestigation ? (
+                <Button
+                  className="w-full"
+                  size="lg"
+                  onClick={() => beginInvestigation(nextInvestigation.id)}
+                >
+                  开始下一项：{nextInvestigation.title} <ArrowRight />
+                </Button>
+              ) : null}
+            </div>
+          ) : (
+            <div className="free-lab-note">
+              <Sparkles />
+              <p>
+                <strong>所有变量已经解锁</strong>
+                随意组合条件。对照雷达会立即告诉你这次改变了几个变量，调查板仍会识别有效证据。
+              </p>
+            </div>
+          )}
+
+          {insights.core ? (
+            <div className="bonus-discovery">
+              <Check /> 自由探索奖励：你还发现了材料会改变信号强弱。
+            </div>
+          ) : null}
           <div className="science-rule">
             <Lightbulb />
             <p>
-              <strong>本关规则</strong>
-              改变多个变量也能看到现象，但只有一次改变一个变量，证据才有解释力。
+              <strong>引导只锁变量，不揭晓现象</strong>
+              装置可以替你摆好，但指针怎样运动，仍要由你亲眼观察。
             </p>
           </div>
           <Button
@@ -1144,7 +1791,9 @@ function ExperimentStage({
             disabled={!requiredComplete}
             onClick={onCourt}
           >
-            {requiredComplete ? '接受三项科学质询' : '核心证据尚不完整'}{' '}
+            {requiredComplete
+              ? '接受三项科学质询'
+              : `还需完成 ${4 - completedCount} 项主线调查`}{' '}
             <Swords />
           </Button>
         </aside>
@@ -1160,6 +1809,7 @@ function ExperimentStage({
               role="tab"
               aria-selected={setup.mode === 'ring'}
               className={setup.mode === 'ring' ? 'is-active' : ''}
+              disabled={labMode === 'guided'}
               onClick={() => switchMode('ring')}
             >
               <Layers3 /> 感应环 · 史实复原
@@ -1169,88 +1819,118 @@ function ExperimentStage({
               role="tab"
               aria-selected={setup.mode === 'magnet'}
               className={setup.mode === 'magnet' ? 'is-active' : ''}
+              disabled={labMode === 'guided'}
               onClick={() => switchMode('magnet')}
             >
               <Magnet /> 磁铁与线圈 · 后续实验
             </button>
           </div>
-          <LabApparatus setup={setup} record={latestRecord} pulsing={pulsing} />
+          <LabApparatus
+            setup={setup}
+            record={displayedRecord}
+            pulsing={pulsing}
+          />
           <div className="live-announcement" aria-live="polite">
             <Gauge />
-            <span>{announcement}</span>
+            <span>{visibleAnnouncement}</span>
           </div>
+          <VariableDiffRadar
+            baseline={
+              labMode === 'guided' ? guidedRadarBaseline : freeRadarBaseline
+            }
+            latest={labMode === 'guided' ? guidedLatest : freeLatest}
+          />
           <p className="model-boundary-note">
             <ShieldQuestion />{' '}
             教学模型使用相对刻度，并暂时省略随机误差；真实实验需要重复测量并报告不确定度。
           </p>
 
           <div className="lab-controls">
-            <div className="control-group control-group--wide">
-              <span className="control-label">这次要做什么</span>
-              <div className="segmented-control">
-                {(setup.mode === 'ring' ? ringActions : magnetActions).map(
-                  (action) => (
-                    <button
-                      type="button"
-                      key={action}
-                      className={setup.action === action ? 'is-active' : ''}
-                      onClick={() => onSetupChange({ action })}
-                    >
-                      {actionLabels[action]}
-                    </button>
-                  ),
-                )}
+            {labMode === 'free' ||
+            activeInvestigation === 'transient' ||
+            activeInvestigation === 'magnetMotion' ? (
+              <div
+                className={`control-group control-group--wide ${controlEnabled('action') ? '' : 'is-locked'}`}
+              >
+                <ControlHeader
+                  label="这次要做什么"
+                  locked={!controlEnabled('action')}
+                />
+                <div className="segmented-control">
+                  {(setup.mode === 'ring' ? ringActions : magnetActions).map(
+                    (action) => (
+                      <button
+                        type="button"
+                        key={action}
+                        className={setup.action === action ? 'is-active' : ''}
+                        disabled={!controlEnabled('action')}
+                        onClick={() => onSetupChange({ action })}
+                      >
+                        {actionLabels[action]}
+                      </button>
+                    ),
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="control-group">
-              <span className="control-label">
-                {setup.mode === 'ring' ? '电池方向' : '进入线圈的磁极'}
-              </span>
-              <div className="polarity-control">
-                <button
-                  type="button"
-                  className={setup.polarity === 'normal' ? 'is-active' : ''}
-                  onClick={() => onSetupChange({ polarity: 'normal' })}
-                >
-                  {setup.mode === 'ring' ? '＋ → −' : 'N 极'}
-                </button>
-                <button
-                  type="button"
-                  className={setup.polarity === 'reversed' ? 'is-active' : ''}
-                  onClick={() => onSetupChange({ polarity: 'reversed' })}
-                >
-                  {setup.mode === 'ring' ? '− → ＋' : 'S 极'}
-                </button>
+            ) : null}
+            {labMode === 'free' || activeInvestigation === 'polarity' ? (
+              <div
+                className={`control-group control-group--wide ${controlEnabled('polarity') ? '' : 'is-locked'}`}
+              >
+                <ControlHeader
+                  label={setup.mode === 'ring' ? '电池方向' : '进入线圈的磁极'}
+                  locked={!controlEnabled('polarity')}
+                />
+                <div className="polarity-control">
+                  <button
+                    type="button"
+                    className={setup.polarity === 'normal' ? 'is-active' : ''}
+                    disabled={!controlEnabled('polarity')}
+                    onClick={() => onSetupChange({ polarity: 'normal' })}
+                  >
+                    {setup.mode === 'ring' ? '＋ → −' : 'N 极'}
+                  </button>
+                  <button
+                    type="button"
+                    className={setup.polarity === 'reversed' ? 'is-active' : ''}
+                    disabled={!controlEnabled('polarity')}
+                    onClick={() => onSetupChange({ polarity: 'reversed' })}
+                  >
+                    {setup.mode === 'ring' ? '− → ＋' : 'S 极'}
+                  </button>
+                </div>
               </div>
-            </div>
-            <div className="control-group">
-              <span className="control-label">线圈匝数组</span>
-              <div className="stepper-control">
-                <button
-                  type="button"
-                  aria-label="减少线圈匝数"
-                  onClick={() =>
-                    onSetupChange({ turns: Math.max(1, setup.turns - 1) })
-                  }
-                >
-                  <Minus />
-                </button>
-                <strong>{setup.turns}×</strong>
-                <button
-                  type="button"
-                  aria-label="增加线圈匝数"
-                  onClick={() =>
-                    onSetupChange({ turns: Math.min(3, setup.turns + 1) })
-                  }
-                >
-                  <Plus />
-                </button>
+            ) : null}
+            {labMode === 'free' ? (
+              <div className="control-group">
+                <ControlHeader label="线圈匝数组" locked={false} />
+                <div className="stepper-control">
+                  <button
+                    type="button"
+                    aria-label="减少线圈匝数"
+                    onClick={() =>
+                      onSetupChange({ turns: Math.max(1, setup.turns - 1) })
+                    }
+                  >
+                    <Minus />
+                  </button>
+                  <strong>{setup.turns}×</strong>
+                  <button
+                    type="button"
+                    aria-label="增加线圈匝数"
+                    onClick={() =>
+                      onSetupChange({ turns: Math.min(3, setup.turns + 1) })
+                    }
+                  >
+                    <Plus />
+                  </button>
+                </div>
               </div>
-            </div>
-            {setup.mode === 'ring' ? (
+            ) : null}
+            {setup.mode === 'ring' && labMode === 'free' ? (
               <>
                 <div className="control-group control-group--wide">
-                  <span className="control-label">环芯材料</span>
+                  <ControlHeader label="环芯材料" locked={false} />
                   <div className="segmented-control">
                     {(['iron', 'copper', 'air'] as CoreMaterial[]).map(
                       (core) => (
@@ -1267,7 +1947,7 @@ function ExperimentStage({
                   </div>
                 </div>
                 <div className="control-group control-group--wide">
-                  <span className="control-label">电池规模</span>
+                  <ControlHeader label="电池规模" locked={false} />
                   <div className="segmented-control">
                     {[1, 10, 100].map((pairs) => (
                       <button
@@ -1287,10 +1967,17 @@ function ExperimentStage({
                   </small>
                 </div>
               </>
-            ) : (
-              <div className="control-group control-group--wide motion-speed-control">
+            ) : null}
+            {setup.mode === 'magnet' &&
+            (labMode === 'free' || activeInvestigation === 'rate') ? (
+              <div
+                className={`control-group control-group--wide motion-speed-control ${controlEnabled('motionSpeed') ? '' : 'is-locked'}`}
+              >
                 <div>
-                  <span className="control-label">磁铁运动速度</span>
+                  <ControlHeader
+                    label="磁铁运动速度"
+                    locked={!controlEnabled('motionSpeed')}
+                  />
                   <strong>{setup.motionSpeed}×</strong>
                 </div>
                 <Slider
@@ -1299,22 +1986,52 @@ function ExperimentStage({
                   min={1}
                   max={5}
                   step={1}
+                  disabled={!controlEnabled('motionSpeed')}
                   onValueChange={(value) =>
                     onSetupChange({ motionSpeed: Number(value) })
                   }
                 />
                 <small>真实可控变量是磁铁的运动速度，而不是“开关速度”。</small>
               </div>
-            )}
+            ) : null}
           </div>
-          <Button
-            className="primary-cta lab-run-button"
-            size="lg"
-            disabled={pulsing}
-            onClick={onRun}
-          >
-            <Play /> {pulsing ? '仪器正在记录…' : '执行这次实验并写入日志'}
-          </Button>
+          {labMode === 'guided' ? (
+            <div className="guided-lock-summary">
+              <LockKeyhole />
+              <p>
+                <strong>其余条件已固定</strong>
+                {setup.mode === 'ring'
+                  ? `${coreLabels[setup.core]} · ${setup.turns}× 匝数 · ${setup.batteryPairs} 对极板`
+                  : `${setup.polarity === 'normal' ? 'N' : 'S'} 极 · ${setup.turns}× 匝数 · ${setup.motionSpeed}× 速度`}
+              </p>
+            </div>
+          ) : null}
+          <div className="lab-run-actions">
+            <Button
+              className="primary-cta lab-run-button"
+              size="lg"
+              disabled={pulsing || !guidedRunReady}
+              onClick={runExperiment}
+            >
+              <Play />{' '}
+              {pulsing
+                ? '仪器正在记录…'
+                : labMode === 'guided' && activeComplete
+                  ? '此项已完成，请开始下一项'
+                  : labMode === 'guided' && !guidedRunReady
+                    ? '先准备一组单变量对照'
+                    : `执行：${actionLabels[setup.action]}`}
+            </Button>
+            {labMode === 'free' && freeLatest ? (
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => onSetupChange(setupFromRecord(freeLatest))}
+              >
+                <Copy /> 复制最近实验
+              </Button>
+            ) : null}
+          </div>
         </div>
 
         <aside className="lab-notebook">
@@ -1340,6 +2057,16 @@ function ExperimentStage({
                   <article className="notebook-record" key={record.id}>
                     <div>
                       <span>#{String(record.id).padStart(2, '0')}</span>
+                      {labMode === 'free' ? (
+                        <button
+                          type="button"
+                          className="notebook-copy"
+                          onClick={() => onSetupChange(setupFromRecord(record))}
+                          aria-label={`复制实验记录 ${record.id} 的全部条件`}
+                        >
+                          <Copy /> 复制
+                        </button>
+                      ) : null}
                       <strong>
                         {record.mode === 'ring' ? '感应环' : '磁铁线圈'} ·{' '}
                         {actionLabels[record.action]}
@@ -2041,7 +2768,7 @@ export default function Expedition() {
         name: 'start_faraday_expedition',
         title: '开始法拉第科学历险',
         description:
-          '打开“只动一下的指针”任务，从初始猜想进入可设计的电磁实验。',
+          '打开“只动一下的指针”任务，从初始猜想进入四段引导式探究，并可随时切换自由实验。',
         inputSchema: {
           type: 'object',
           properties: {},
@@ -2065,7 +2792,7 @@ export default function Expedition() {
           return {
             status: 'ready',
             mission: 'faraday-inquiry-1831',
-            mode: 'open-laboratory',
+            mode: 'guided-inquiry-with-free-lab',
           };
         },
       },
