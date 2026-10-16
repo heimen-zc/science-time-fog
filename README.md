@@ -61,6 +61,8 @@ npm run video:generate
 
 创建任务后，视频 ID 与状态保存在被 Git 忽略的 `work/agnes-faraday/jobs.json`。中断后使用 `npm run video:wait` 继续查询；已有分镜不会重复创建。只有明确的 `video_queue_full` 响应会间隔 45 秒重试，最多 15 次；超时等结果不确定的请求不会自动重做。生成失败也不会自动切换模型或付费重试。`npm run video:diagnose` 只读检查密钥与模型列表。
 
+定时续作可以设置 `AGNES_QUEUE_RETRIES=0`，让每次唤醒只尝试创建一次；队列仍满时留待下次唤醒，避免密集请求。用户选择继续等待 Flash，不切换标准版。
+
 拿到三段真实视频后，执行：
 
 ```bash

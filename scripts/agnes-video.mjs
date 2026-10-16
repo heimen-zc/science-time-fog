@@ -14,6 +14,7 @@ const jobsPath = resolve(work, 'jobs.json');
 const apiOrigin = 'https://apihub.agnes-ai.com';
 const model = 'agnes-video-2.5-flash';
 const command = process.argv[2] ?? 'status';
+const queueRetries = Number(process.env.AGNES_QUEUE_RETRIES ?? 15);
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
 async function readKey() {
@@ -227,6 +228,8 @@ async function update(jobs, key) {
 }
 
 async function main() {
+  if (!Number.isInteger(queueRetries) || queueRetries < 0 || queueRetries > 15)
+    throw new Error('AGNES_QUEUE_RETRIES must be an integer from 0 to 15.');
   if (!['generate', 'status', 'wait', 'diagnose', 'plan'].includes(command))
     throw new Error(
       'Usage: node scripts/agnes-video.mjs generate|status|wait|diagnose|plan',
@@ -306,7 +309,7 @@ async function main() {
         jobs.push(job);
       }
       let result;
-      for (let attempt = 0; attempt < 16; attempt++) {
+      for (let attempt = 0; attempt <= queueRetries; attempt++) {
         // COSEC: 请求前持久化意图，中断或超时后保留未确认状态，防止下次运行重复计费。
         job.status = 'submission_unconfirmed';
         await saveJobs(jobs);
@@ -330,9 +333,9 @@ async function main() {
             job.status = 'queue_full';
             await saveJobs(jobs);
           }
-          if (!error.queueFull || attempt === 15) throw error;
+          if (!error.queueFull || attempt === queueRetries) throw error;
           console.log(
-            `Agnes queue full for ${clip.slug}; retry ${attempt + 1}/15 in 45s. No task created.`,
+            `Agnes queue full for ${clip.slug}; retry ${attempt + 1}/${queueRetries} in 45s. No task created.`,
           );
           await sleep(45_000);
         }
