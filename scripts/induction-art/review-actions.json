@@ -1,0 +1,14 @@
+[
+  ["eval", "(()=>{const b=document.querySelector('.induction-bench').getBBox();if(b.x<0||b.y<0||b.x+b.width>960||b.y+b.height>540)throw Error('Art exceeds viewBox');return{x:b.x,y:b.y,width:b.width,height:b.height}})()"],
+  ["lines"],
+  ["shot", "scripts/induction-art/generated/art-final.png"],
+  ["shot", "scripts/induction-art/generated/detail-left.png", ".induction-bench", 4, [130,35,360,280]],
+  ["shot", "scripts/induction-art/generated/detail-right.png", ".induction-bench", 4, [480,150,380,330]],
+  ["eval", "window.setBenchFrame({closed:1,needle:0,flux:1,field:true,primary:1,secondary:0});({primary:getComputedStyle(document.querySelector('.bench-current-primary')).opacity,secondary:getComputedStyle(document.querySelector('.bench-current-secondary')).opacity,field:document.querySelector('[data-bench-field]').getAttribute('opacity'),needle:document.querySelector('[data-bench-needle]').getAttribute('transform')})"],
+  ["lines"],
+  ["shot", "scripts/induction-art/generated/art-steady.png"],
+  ["eval", "window.setBenchFrame({closed:.5,needle:-.85,flux:-.6,field:true,primary:-.6,secondary:-.9,polarity:-1});({direction:document.querySelector('.induction-bench').dataset.secondaryDirection,secondary:getComputedStyle(document.querySelector('.bench-current-secondary')).opacity})"],
+  ["lines"],
+  ["shot", "scripts/induction-art/generated/art-reverse.png"],
+  ["eval", "window.setBenchFrame({closed:0,needle:0,flux:0,field:true,primary:0,secondary:0});({field:document.querySelector('[data-bench-field]').getAttribute('opacity'),zeroNeedle:document.querySelector('[data-bench-needle]').getAttribute('transform')})"]
+]

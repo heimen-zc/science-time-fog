@@ -56,11 +56,16 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Slider } from '@/components/ui/slider';
+import { InductionDiscovery } from '@/components/induction-discovery';
+import {
+  completedDiscovery,
+  type DiscoveryRecord,
+} from '@/lib/induction-model';
 
 const publicAsset = (path: string) =>
   `${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}${path}`;
 
-type Screen = 'intro' | 'map' | 'mission' | 'archive';
+type Screen = 'intro' | 'map' | 'mission' | 'archive' | 'discovery';
 type MissionStage = 'prediction' | 'experiment' | 'court';
 type HypothesisId = 'conduction' | 'instrument' | 'temporary-state';
 type ApparatusMode = 'ring' | 'magnet';
@@ -624,9 +629,11 @@ function SiteHeader({
 function IntroScreen({
   portalReady,
   onLaunch,
+  onMap,
 }: {
   portalReady: boolean;
   onLaunch: () => void;
+  onMap: () => void;
 }) {
   return (
     <section className="intro-screen" aria-labelledby="intro-title">
@@ -645,10 +652,13 @@ function IntroScreen({
         </p>
         <div className="intro-actions">
           <Button className="primary-cta" size="lg" onClick={onLaunch}>
-            {portalReady ? '穿过时间迷雾' : '启动时间入口'} <ArrowRight />
+            亲手试试：只动一下的指针 <ArrowRight />
           </Button>
-          <span>引导主线约 10 分钟 · 无需预备知识</span>
+          <span>第一场发现约 2–3 分钟 · 直接操作动画装置</span>
         </div>
+        <button type="button" className="intro-map-link" onClick={onMap}>
+          先看看科学时间地图 <ArrowRight />
+        </button>
         <div className="mission-coordinate">
           <FlaskConical />
           <p>
@@ -1760,6 +1770,7 @@ function ExperimentStage({
   onTransientChainSolved,
   onCourt,
   onBack,
+  initialMode = 'guided',
 }: {
   setup: ExperimentSetup;
   records: ExperimentRecord[];
@@ -1773,6 +1784,7 @@ function ExperimentStage({
   onTransientChainSolved: () => void;
   onCourt: () => void;
   onBack: () => void;
+  initialMode?: LabMode;
 }) {
   const insights = getInsights(records);
   const investigationComplete = (id: InvestigationId) =>
@@ -1783,7 +1795,7 @@ function ExperimentStage({
   const completedCount = investigationDefinitions.filter((item) =>
     investigationComplete(item.id),
   ).length;
-  const [labMode, setLabMode] = useState<LabMode>('guided');
+  const [labMode, setLabMode] = useState<LabMode>(initialMode);
   const [activeInvestigation, setActiveInvestigation] =
     useState<InvestigationId>(
       () =>
@@ -3447,6 +3459,7 @@ const initialSetup: ExperimentSetup = {
 export default function Expedition() {
   const [screen, setScreen] = useState<Screen>('intro');
   const [portalReady, setPortalReady] = useState(false);
+  const [initialLabMode, setInitialLabMode] = useState<LabMode>('guided');
   const [missionStage, setMissionStage] = useState<MissionStage>('prediction');
   const [selectedHypothesis, setSelectedHypothesis] =
     useState<HypothesisId | null>(null);
@@ -3469,6 +3482,10 @@ export default function Expedition() {
 
   useEffect(() => {
     const restoreTimer = window.setTimeout(() => {
+      if (
+        new URLSearchParams(window.location.search).get('lab') === 'induction'
+      )
+        setScreen('discovery');
       try {
         const saved = window.localStorage.getItem(STORAGE_KEY);
         if (saved) {
@@ -3530,7 +3547,7 @@ export default function Expedition() {
         name: 'start_faraday_expedition',
         title: '开始法拉第科学历险',
         description:
-          '打开“只动一下的指针”任务，从初始猜想进入四段引导式探究；首段包含角色互动、导线操作和证据链重建，并可随时切换自由实验。',
+          '直接打开感应环互动动画，亲手通断开关、叠放观察曲线，再只反转电池完成对照；证据收齐后解锁现代磁场示意与后续实验。',
         inputSchema: {
           type: 'object',
           properties: {},
@@ -3547,7 +3564,7 @@ export default function Expedition() {
             throw new Error('This action does not accept arguments.');
           resetMission();
           setPortalReady(true);
-          setScreen('mission');
+          setScreen('discovery');
           await new Promise<void>((resolve) =>
             window.requestAnimationFrame(() => resolve()),
           );
@@ -3582,14 +3599,43 @@ export default function Expedition() {
   };
   const openMap = () => setScreen('map');
   const launchPortal = () => {
-    if (!portalReady) {
-      setPortalReady(true);
-      return;
-    }
-    setScreen('map');
+    resetMission();
+    setPortalReady(true);
+    setScreen('discovery');
   };
   const enterMission = () => {
     resetMission();
+    setPortalReady(true);
+    setScreen('discovery');
+  };
+  const finishDiscovery = (observations: DiscoveryRecord[]) => {
+    if (!completedDiscovery(observations)) return;
+    const imported = observations.map((observation, index) => ({
+      id: index + 1,
+      ...simulateExperiment({
+        ...guidedRingSetup,
+        action: observation.action,
+        polarity: observation.polarity,
+      }),
+    }));
+    recordId.current = imported.length;
+    setRecords(imported);
+    setLatestRecord(imported.at(-1) ?? null);
+    setTransientChainSolved(true);
+    setSetup(guidedMagnetSetup);
+    setPulsing(false);
+    setInitialLabMode('guided');
+    setAnnouncement(
+      '你已完成通断观察与电池方向对照。接下来，用磁铁与线圈继续检验。',
+    );
+    awardXp(35);
+    setMissionStage('experiment');
+    setScreen('mission');
+  };
+  const openFreeLab = () => {
+    resetMission();
+    setInitialLabMode('free');
+    setMissionStage('experiment');
     setScreen('mission');
   };
   const confirmHypothesis = () => {
@@ -3632,8 +3678,19 @@ export default function Expedition() {
     <main className="app-shell">
       <SiteHeader screen={screen} xp={xp} onMap={openMap} onReset={resetAll} />
       {screen === 'intro' && (
-        <IntroScreen portalReady={portalReady} onLaunch={launchPortal} />
+        <IntroScreen
+          portalReady={portalReady}
+          onLaunch={launchPortal}
+          onMap={openMap}
+        />
       )}
+      {screen === 'discovery' ? (
+        <InductionDiscovery
+          onComplete={finishDiscovery}
+          onBack={openMap}
+          onExplore={openFreeLab}
+        />
+      ) : null}
       {screen === 'map' && (
         <MapScreen completed={completed} onEnterMission={enterMission} />
       )}
@@ -3649,6 +3706,7 @@ export default function Expedition() {
       )}
       {screen === 'mission' && missionStage === 'experiment' && (
         <ExperimentStage
+          initialMode={initialLabMode}
           setup={setup}
           records={records}
           latestRecord={latestRecord}

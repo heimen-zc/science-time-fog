@@ -1,0 +1,291 @@
+.induction-bench {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+  color: #afc2c9;
+}
+.induction-bench path {
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.induction-bench .bench-outline {
+  fill: none;
+  stroke: var(--bench-edge, #85979c);
+  stroke-width: 0.7;
+}
+.induction-bench .bench-handle {
+  fill: #202831;
+  stroke: #748188;
+  stroke-width: 0.8;
+}
+.induction-bench .bench-needle {
+  fill: #174c58;
+  stroke: #326d75;
+  stroke-width: 0.5;
+}
+.induction-bench .bench-hub {
+  fill: #d4bc83;
+  stroke: #715c37;
+  stroke-width: 0.8;
+}
+.induction-bench .bench-field-line {
+  fill: none;
+  stroke: #86d6dc;
+  stroke-width: 1.8;
+  stroke-dasharray: 5 6;
+  opacity: 0.95;
+}
+.induction-bench .bench-top {
+  fill: var(--bench-top, #465360);
+}
+.induction-bench {
+  --bench-face: #242e37;
+  --bench-top: #3f4b55;
+  --bench-edge: #71818a;
+  --bench-shade-0: #202830;
+  --bench-shade-1: #29343d;
+  --bench-shade-2: #303d47;
+  --bench-shade-3: #3b4852;
+}
+.induction-bench .bench-material-walnut {
+  --bench-face: #2c231f;
+  --bench-top: #49362a;
+  --bench-edge: #79624a;
+  --bench-shade-0: #211c1a;
+  --bench-shade-1: #2b211c;
+  --bench-shade-2: #36271f;
+  --bench-shade-3: #3e2e24;
+}
+.induction-bench .bench-material-wood {
+  --bench-face: #553b2b;
+  --bench-top: #76553b;
+  --bench-edge: #a08054;
+  --bench-shade-0: #3c2d24;
+  --bench-shade-1: #493326;
+  --bench-shade-2: #5a3f2d;
+  --bench-shade-3: #674a32;
+}
+.induction-bench .bench-material-deck {
+  --bench-face: #252c32;
+  --bench-top: #303940;
+  --bench-edge: #586168;
+  --bench-shade-0: #22282e;
+  --bench-shade-1: #252d34;
+  --bench-shade-2: #2b343b;
+  --bench-shade-3: #303a41;
+}
+.induction-bench .bench-material-brass {
+  --bench-face: #8c6e3b;
+  --bench-top: #c5a56a;
+  --bench-edge: #d9bc82;
+  --bench-shade-0: #5a472b;
+  --bench-shade-1: #796036;
+  --bench-shade-2: #9a7d49;
+  --bench-shade-3: #b5965a;
+}
+.induction-bench .bench-material-copper {
+  --bench-face: #ad6a40;
+  --bench-top: #ce8c58;
+  --bench-edge: #df9f6e;
+  --bench-shade-0: #5b392a;
+  --bench-shade-1: #75452f;
+  --bench-shade-2: #9c5d39;
+  --bench-shade-3: #bc7a4b;
+}
+.induction-bench .bench-material-iron {
+  --bench-face: #47545d;
+  --bench-top: #687780;
+  --bench-edge: #93a2a8;
+  --bench-shade-0: #27343e;
+  --bench-shade-1: #35444f;
+  --bench-shade-2: #455661;
+  --bench-shade-3: #61727b;
+}
+.induction-bench .bench-material-ebonite,
+.induction-bench .bench-material-rubber {
+  --bench-face: #1a2228;
+  --bench-top: #323d44;
+  --bench-edge: #68767e;
+  --bench-shade-0: #131b21;
+  --bench-shade-1: #1b242c;
+  --bench-shade-2: #263039;
+  --bench-shade-3: #303b43;
+}
+.induction-bench .bench-material-porcelain {
+  --bench-face: #8d9692;
+  --bench-top: #bdc5bb;
+  --bench-edge: #cbd1c5;
+  --bench-shade-0: #596864;
+  --bench-shade-1: #788780;
+  --bench-shade-2: #929f94;
+  --bench-shade-3: #a9b4a6;
+}
+.induction-bench .bench-material-ivory {
+  --bench-face: #dedeca;
+  --bench-top: #e7e5cf;
+  --bench-edge: #797d71;
+  --bench-shade-0: #a5b0a1;
+  --bench-shade-1: #bbc2af;
+  --bench-shade-2: #d0d3bd;
+  --bench-shade-3: #e4e3cd;
+}
+.induction-bench .bench-material-primary-wire {
+  --bench-face: #925139;
+  --bench-top: #bd7955;
+  --bench-edge: #c88a65;
+  --bench-shade-0: #583426;
+}
+.induction-bench .bench-material-return-wire {
+  --bench-face: #413a34;
+  --bench-top: #66594a;
+  --bench-edge: #a18a6f;
+  --bench-shade-0: #292622;
+}
+.induction-bench .bench-material-secondary-wire {
+  --bench-face: #46676e;
+  --bench-top: #72969a;
+  --bench-edge: #91b8b9;
+  --bench-shade-0: #253f48;
+}
+.induction-bench .bench-material-secondary-return {
+  --bench-face: #2b4149;
+  --bench-top: #506c74;
+  --bench-edge: #71949b;
+  --bench-shade-0: #172d36;
+}
+.induction-bench .bench-fill {
+  fill: var(--bench-face);
+}
+.induction-bench .bench-shade-0 {
+  fill: var(--bench-shade-0);
+}
+.induction-bench .bench-shade-1 {
+  fill: var(--bench-shade-1);
+}
+.induction-bench .bench-shade-2 {
+  fill: var(--bench-shade-2);
+}
+.induction-bench .bench-shade-3 {
+  fill: var(--bench-shade-3);
+}
+.induction-bench .bench-crease {
+  fill: none;
+  stroke: var(--bench-edge);
+  stroke-width: 0.5;
+  opacity: 0.6;
+}
+.induction-bench .bench-bevel {
+  fill: none;
+  stroke: var(--bench-top);
+  stroke-width: 0.8;
+  opacity: 0.85;
+}
+.induction-bench .bench-tube-body {
+  fill: var(--bench-face);
+}
+.induction-bench .bench-tube-shine {
+  fill: var(--bench-top);
+}
+.induction-bench .bench-tube-shade {
+  fill: var(--bench-shade-0);
+}
+.induction-bench .bench-tube-edge {
+  fill: none;
+  stroke: var(--bench-edge);
+  stroke-width: 0.55;
+}
+.induction-bench .bench-line,
+.induction-bench .bench-slot,
+.induction-bench .bench-groove {
+  fill: none;
+  stroke: var(--bench-edge);
+  stroke-width: 0.65;
+  opacity: 0.6;
+}
+.induction-bench .bench-slot {
+  stroke: #493b29;
+  opacity: 1;
+}
+.induction-bench .bench-groove {
+  opacity: 0.38;
+}
+.induction-bench .bench-moving-top {
+  fill: var(--bench-top);
+  stroke: var(--bench-edge);
+  stroke-width: 0.65;
+}
+.induction-bench .bench-moving-side {
+  fill: var(--bench-shade-1);
+  stroke: var(--bench-edge);
+  stroke-width: 0.65;
+}
+.induction-bench .bench-moving-end {
+  fill: var(--bench-shade-2);
+  stroke: var(--bench-edge);
+  stroke-width: 0.65;
+}
+.induction-bench .bench-scale,
+.induction-bench .bench-tick {
+  fill: none;
+  stroke: #777f73;
+  stroke-width: 0.6;
+}
+.induction-bench .bench-zero {
+  fill: none;
+  stroke: #2c605f;
+  stroke-width: 1.4;
+}
+.induction-bench .bench-zero-label {
+  fill: #44594f;
+  font:
+    5px ui-monospace,
+    monospace;
+}
+.induction-bench .bench-scale-sign {
+  fill: #68796b;
+  font:
+    7px ui-monospace,
+    monospace;
+}
+.induction-bench .bench-field-arrow {
+  fill: none;
+  stroke: #a1e3e5;
+  stroke-width: 1.7;
+}
+.induction-bench .bench-polarity-disc {
+  fill: #bc8054;
+  stroke: #e1bd83;
+  stroke-width: 0.65;
+}
+.induction-bench .bench-polarity-mark {
+  fill: none;
+  stroke: #f0dfb5;
+  stroke-width: 1;
+}
+.induction-bench .bench-current-primary {
+  fill: #f2be7a;
+  opacity: calc(var(--bench-primary, 0) * 0.85);
+}
+.induction-bench .bench-current-secondary {
+  fill: #a3e3e3;
+  opacity: calc(var(--bench-secondary, 0) * 0.9);
+}
+.induction-bench [data-bench-current-arrow][data-sign='negative'] {
+  display: none;
+}
+.induction-bench[data-primary-direction='negative']
+  [data-bench-current-arrow='primary'][data-sign='negative'],
+.induction-bench[data-secondary-direction='negative']
+  [data-bench-current-arrow='secondary'][data-sign='negative'] {
+  display: block;
+}
+.induction-bench[data-primary-direction='negative']
+  [data-bench-current-arrow='primary'][data-sign='positive'],
+.induction-bench[data-secondary-direction='negative']
+  [data-bench-current-arrow='secondary'][data-sign='positive'] {
+  display: none;
+}
+[data-theme='light'] .induction-bench {
+  color: #334958;
+}

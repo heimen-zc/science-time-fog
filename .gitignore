@@ -37,3 +37,10 @@ next-env.d.ts
 /outputs/
 /work/
 *.tsbuildinfo
+
+# Regenerable illustration previews and audit output (runtime geometry is tracked).
+/scripts/induction-art/generated/*.html
+/scripts/induction-art/generated/preview-component.mjs
+/scripts/induction-art/generated/record.json
+/scripts/induction-art/generated/*.png
+/scripts/induction-art/generated/*.txt
