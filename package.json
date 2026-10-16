@@ -12,7 +12,13 @@
     "lint": "oxlint app/*.tsx components/ui/button.tsx components/ui/badge.tsx components/ui/progress.tsx components/ui/slider.tsx lib/utils.ts",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm run lint && npm run build",
-    "format": "oxfmt"
+    "format": "oxfmt",
+    "video:plan": "node scripts/agnes-video.mjs plan",
+    "video:generate": "node scripts/agnes-video.mjs generate",
+    "video:status": "node scripts/agnes-video.mjs status",
+    "video:wait": "node scripts/agnes-video.mjs wait",
+    "video:diagnose": "node scripts/agnes-video.mjs diagnose",
+    "video:render": "node scripts/render-faraday-video.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",

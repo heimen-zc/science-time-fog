@@ -1,0 +1,52 @@
+{
+  "title": "为什么指针只动一下？",
+  "model": "agnes-video-2.5-flash",
+  "size": "720P",
+  "aspectRatio": "16:9",
+  "totalSeconds": 36,
+  "note": "三段独立的 12 秒文生视频素材，后期添加统一的中文讲解。教学重现，非历史录像；场的可视化是现代解释。",
+  "clips": [
+    {
+      "slug": "01-apparatus",
+      "seconds": 12,
+      "title": "先看懂装置",
+      "prompt": "Create a 12 second, 16:9, beautifully clear educational historical laboratory demonstration about Faraday's 1831 induction ring, for primary-school children. Single coherent tabletop scene, warm brass and copper on a deep navy laboratory background, soft amber lighting, premium detailed realistic 3D animation. NOT a fantasy machine. A horizontal dark iron toroidal ring lies on the wooden bench, with two separate neatly insulated copper-wire coils wound on opposite sides of the SAME continuous ring. The coils are electrically isolated from each other. The LEFT coil has exactly two leads connected to a small enclosed LOW-VOLTAGE battery and a large simple brass knife switch; the RIGHT coil has exactly two separate leads forming a closed circuit with a sensitive round, centre-zero moving-needle galvanometer. There is absolutely NO wire from the battery circuit to the galvanometer circuit. The switch stays OPEN throughout this clip. 0-4s: calm overhead three-quarter establishing view of the complete apparatus. 4-8s: slowly trace the left circuit from the low-voltage battery through the open switch to the left coil, using a subtle amber highlight on existing wires without electricity flowing. 8-12s: slowly trace the separate right coil and its closed loop to the galvanometer using a cyan highlight; the needle stays exactly at the centre-zero position. Keep both circuits visually distinct and the ring continuous. Leave the upper 12% and bottom 22% of the image quiet for captions added later. No on-screen text, no subtitles, no floating letters, no equations, no logo, no watermark, no sparks, no high voltage, no mains sockets, no speech, quiet soft laboratory ambience only. Never imply that electricity jumps across the ring or that the two coils are wired together. The pupil should understand the apparatus before any experiment begins."
+    },
+    {
+      "slug": "02-connect-hold",
+      "seconds": 12,
+      "title": "接通后，继续等一等",
+      "prompt": "Create a 12 second, 16:9, precise educational animation about Faraday's induction ring for children. Consistent warm copper and brass apparatus against a deep navy 1831-style laboratory with a low wooden bench; detailed clean realistic 3D animation. The entire horizontal iron ring with two insulated copper coils remains visible. LEFT coil, a small enclosed LOW-VOLTAGE battery and brass knife switch form one circuit. RIGHT coil and a separate centre-zero round moving-needle galvanometer form a completely independent closed circuit, with NO electrical wire linking the two circuits. Compose the brass switch on the left and the large readable galvanometer on the right in the same steady shot. 0-3s: switch OPEN, galvanometer needle exactly at centre. 3-4s: a single hand smoothly CLOSES the knife switch once. Precisely at the switch closure, the galvanometer needle briefly swings to the viewer's RIGHT. 4-6s: the needle smoothly returns to the centre zero. 6-12s: the switch stays firmly CLOSED and primary battery current continues, but the galvanometer needle remains at centre zero, completely still. No repeated switching, no bouncing needle, no needle staying deflected. A subtle amber glow may show the battery circuit still carrying current while the galvanometer circuit has NO ongoing current. Keep wires, coils and ring fixed without morphing, do not create new leads. Leave the upper 12% and bottom 22% quiet for captions added later. No text, no captions, no labels, no letters, no equation, no speech, no music, quiet laboratory ambience and a soft switch click only. No sparks, no high voltage. Essential scientific point: a brief induced current appears during the change, NOT throughout the time the primary current remains constant."
+    },
+    {
+      "slug": "03-disconnect-principle",
+      "seconds": 12,
+      "title": "断开，为什么反向？",
+      "prompt": "Create a 12 second, 16:9, scientifically careful children's educational animation of Faraday's induction ring. Warm brass and copper on a deep navy laboratory bench, crisp premium realistic 3D animation, calm camera. A horizontal continuous dark iron toroidal ring has two insulated copper coils on opposite sides: LEFT coil connected only to an enclosed low-voltage battery and brass knife switch, RIGHT coil connected only to a sensitive round centre-zero galvanometer. The circuits are electrically isolated, never wire them together. The switch starts CLOSED with the galvanometer needle exactly at centre zero. 0-3s: hold this steady state, primary current still flowing, secondary needle still at zero. 3-4s: one hand OPENS the brass knife switch once. Precisely when it opens, the galvanometer needle swings briefly to the viewer's LEFT, opposite to the earlier closing pulse. 4-6s: the needle returns smoothly to zero and stays there. 6-12s: keep the real tabletop apparatus visible and gently reveal a subtle semi-transparent CYAN magnetic-field visualization constrained along the continuous iron ring: a short explanatory replay shows the field building when the switch closes and fading when it opens. Field lines must be distinguishable from copper wires, not particles traveling from one coil into the other, and not visible real objects. There is no electrical conduction through the insulation or from one circuit into the other. Avoid magical glowing arcs and avoid any claim that a constant magnetic field by itself produces continuous induced current. Do not move or morph apparatus parts. Leave upper 12% and bottom 22% quiet for captions added later. No text, labels, subtitles, symbols, equations, speech or music. Only a soft switch click and quiet room ambience. The key visual lesson is opposite brief pulses at making and breaking the circuit, with zero induced current in both settled states."
+    }
+  ],
+  "chapters": [
+    {
+      "start": 0,
+      "end": 12,
+      "label": "先看懂装置",
+      "instruction": "左线圈接低压电池和开关，右线圈只接检流计。两组导线互不相连。"
+    },
+    {
+      "start": 12,
+      "end": 24,
+      "label": "接通，再保持",
+      "instruction": "接通时看指针，保持接通后继续观察。电池仍在供电，右侧指针却回到零。"
+    },
+    {
+      "start": 24,
+      "end": 36,
+      "label": "断开与原理",
+      "instruction": "断开瞬间反向偏转。穿过右线圈的磁场在变化，才产生感应电动势；闭合回路里才有感应电流。"
+    }
+  ],
+  "sources": [
+    "https://www.rigb.org/explore-science/explore/collection/michael-faradays-ring-coil-apparatus",
+    "https://www.gutenberg.org/files/14986/14986-h/14986-h.htm"
+  ]
+}
