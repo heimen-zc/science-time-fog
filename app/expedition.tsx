@@ -9,6 +9,8 @@ import {
   useMemo,
   useRef,
   useState,
+  lazy,
+  Suspense,
 } from 'react';
 import {
   Archive,
@@ -58,14 +60,31 @@ import { Progress } from '@/components/ui/progress';
 import { Slider } from '@/components/ui/slider';
 import { InductionDiscovery } from '@/components/induction-discovery';
 import {
+  compareMagnetSpeeds,
+  validMagnetCycle,
+  type MagnetCapture,
+} from '@/lib/magnet-model';
+import {
   completedDiscovery,
   type DiscoveryRecord,
 } from '@/lib/induction-model';
 
+const MagnetDiscovery = lazy(() =>
+  import('@/components/magnet-discovery').then((module) => ({
+    default: module.MagnetDiscovery,
+  })),
+);
+
 const publicAsset = (path: string) =>
   `${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}${path}`;
 
-type Screen = 'intro' | 'map' | 'mission' | 'archive' | 'discovery';
+type Screen =
+  | 'intro'
+  | 'map'
+  | 'mission'
+  | 'archive'
+  | 'discovery'
+  | 'magnet-discovery';
 type MissionStage = 'prediction' | 'experiment' | 'court';
 type HypothesisId = 'conduction' | 'instrument' | 'temporary-state';
 type ApparatusMode = 'ring' | 'magnet';
@@ -95,6 +114,8 @@ type ExperimentRecord = ExperimentSetup & {
   strength: number;
   observation: string;
   signature: string;
+  magnetCapture?: MagnetCapture;
+  magnetSession?: string;
 };
 
 type ModelContext = {
@@ -447,6 +468,26 @@ function findControlledActionSeries(
   mode: ApparatusMode,
   actions: ExperimentAction[],
 ) {
+  // Live magnet observations establish a qualitative motion/stillness sequence.
+  // Their measured speeds are retained; unlike a scripted speed setting, these
+  // three traces must not be treated as a quantitative single-speed comparison.
+  if (mode === 'magnet' && actions.length === 3) {
+    const sessions = new Set(
+      records
+        .filter((record) => record.magnetSession)
+        .map((record) => record.magnetSession),
+    );
+    for (const session of sessions) {
+      const captured = records.filter(
+        (record) => record.magnetSession === session && record.magnetCapture,
+      );
+      if (validMagnetCycle(captured.map((record) => record.magnetCapture!))) {
+        return actions.map((action) =>
+          captured.find((record) => record.action === action)!,
+        );
+      }
+    }
+  }
   const candidates = records.filter((record) => record.mode === mode);
   for (const baseline of candidates) {
     const series = actions.map((action) =>
@@ -488,7 +529,17 @@ function findRatePair(records: ExperimentRecord[]) {
           candidate.mode === 'magnet' &&
           sameContextExcept(first, candidate, 'motionSpeed') &&
           candidate.motionSpeed !== first.motionSpeed &&
-          candidate.strength !== first.strength,
+          candidate.strength !== first.strength &&
+          ((!first.magnetCapture && !candidate.magnetCapture) ||
+            Boolean(
+              first.magnetCapture &&
+              candidate.magnetCapture &&
+              first.magnetSession === candidate.magnetSession &&
+              compareMagnetSpeeds(
+                first.magnetCapture,
+                candidate.magnetCapture,
+              ) === 'confirmed',
+            )),
       );
     if (second) return [first, second];
   }
@@ -1098,11 +1149,11 @@ const investigationDefinitions: InvestigationDefinition[] = [
     title: '切断漏电退路',
     question: '不用原线圈的电池，还能让指针运动吗？',
     method:
-      '换成磁铁与线圈，依次比较推入、静止和抽出。磁铁与线圈没有导线接触。',
+      '直接拖动磁铁，依次观察靠近、停住和远离。先比较有无响应与方向；快慢的定量比较需要另做同一路程对照。',
     slotLabels: ['推入磁铁', '保持静止', '抽出磁铁'],
     hints: [
-      '点击空证据槽，系统会替你选中推入、静止或抽出。',
-      '保持磁极、匝数和速度不变，只改变磁铁正在做什么。',
+      '打开可拖动的磁铁实验，每次只跟随一个操作提示。',
+      '保持磁极、线圈和接线不变。停住也是一条值得保存的零结果。',
       '点击“帮我摆好下一步”，系统会找到当前还缺少的动作。',
     ],
   },
@@ -1155,6 +1206,14 @@ const fieldLabels: Record<RelevantField, string> = {
 function signalLabel(record: ExperimentRecord) {
   if (record.direction === 'none') return '零';
   return `${record.direction === 'right' ? '＋' : '−'}${record.strength}`;
+}
+
+function magnetMotionLabel(record: ExperimentRecord) {
+  return record.magnetCapture
+    ? record.action === 'hold'
+      ? `静止观察 ${record.magnetCapture.duration.toFixed(1)} 秒`
+      : `操作用时 ${record.magnetCapture.duration.toFixed(1)} 秒`
+    : `${record.motionSpeed}× 预设速度`;
 }
 
 function suggestedBaselineFor(
@@ -1770,6 +1829,7 @@ function ExperimentStage({
   onTransientChainSolved,
   onCourt,
   onBack,
+  onOpenMagnet,
   initialMode = 'guided',
 }: {
   setup: ExperimentSetup;
@@ -1784,6 +1844,7 @@ function ExperimentStage({
   onTransientChainSolved: () => void;
   onCourt: () => void;
   onBack: () => void;
+  onOpenMagnet: () => void;
   initialMode?: LabMode;
 }) {
   const insights = getInsights(records);
@@ -2149,6 +2210,14 @@ function ExperimentStage({
           <Progress value={completedCount * 25} aria-label="主线调查进度" />
         </div>
       </div>
+
+      <Button
+        variant="outline"
+        className="magnet-return-link"
+        onClick={onOpenMagnet}
+      >
+        <Magnet /> 打开可拖动的磁铁实验 · 保留已有观察
+      </Button>
 
       <div className="lab-v2__grid">
         <aside className="inquiry-board">
@@ -2621,6 +2690,12 @@ function ExperimentStage({
                           type="button"
                           className="notebook-copy"
                           onClick={() => onSetupChange(setupFromRecord(record))}
+                          disabled={Boolean(record.magnetCapture)}
+                          title={
+                            record.magnetCapture
+                              ? '实际手动轨迹不能复制为预设速度，请打开可拖动的磁铁实验复现。'
+                              : undefined
+                          }
                           aria-label={`复制实验记录 ${record.id} 的全部条件`}
                         >
                           <Copy /> 复制
@@ -2633,7 +2708,7 @@ function ExperimentStage({
                       <small>
                         {record.mode === 'ring'
                           ? `${coreLabels[record.core]} / ${record.polarity === 'normal' ? '正向' : '反向'}电池 / ${record.batteryPairs} 对极板`
-                          : `${record.polarity === 'normal' ? 'N' : 'S'} 极 / ${record.motionSpeed}× 速度`}{' '}
+                          : `${record.polarity === 'normal' ? 'N' : 'S'} 极 / ${magnetMotionLabel(record)}`}{' '}
                         / {record.turns}× 匝数
                       </small>
                     </div>
@@ -2710,7 +2785,15 @@ function evidenceGroupsForClaim(
           ? sameContextExcept(first, second, 'polarity') &&
             first.polarity !== second.polarity &&
             first.direction !== second.direction
-          : sameContextExcept(first, second, 'action') &&
+          : (sameContextExcept(first, second, 'action') ||
+              Boolean(
+                first.magnetCapture &&
+                second.magnetCapture &&
+                first.magnetSession === second.magnetSession &&
+                first.polarity === second.polarity &&
+                first.turns === second.turns &&
+                (first.action === 'hold' || second.action === 'hold'),
+              )) &&
             first.action !== second.action &&
             (first.strength === 0) !== (second.strength === 0);
       if (valid) groups.push([first.id, second.id]);
@@ -3091,7 +3174,7 @@ function CourtStage({
                     <small>
                       {record.mode === 'ring'
                         ? `${coreLabels[record.core]} / ${record.polarity === 'normal' ? '正向' : '反向'}电池 / ${record.batteryPairs} 对 / ${record.turns}× 匝`
-                        : `${record.polarity === 'normal' ? 'N' : 'S'} 极 / ${record.motionSpeed}× 速度 / ${record.turns}× 匝`}
+                        : `${record.polarity === 'normal' ? 'N' : 'S'} 极 / ${magnetMotionLabel(record)} / ${record.turns}× 匝`}
                     </small>
                   </div>
                   <em
@@ -3481,11 +3564,17 @@ export default function Expedition() {
   const timers = useRef<number[]>([]);
 
   useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [screen, missionStage]);
+
+  useEffect(() => {
     const restoreTimer = window.setTimeout(() => {
       if (
         new URLSearchParams(window.location.search).get('lab') === 'induction'
       )
         setScreen('discovery');
+      if (new URLSearchParams(window.location.search).get('lab') === 'magnet')
+        setScreen('magnet-discovery');
       try {
         const saved = window.localStorage.getItem(STORAGE_KEY);
         if (saved) {
@@ -3630,6 +3719,60 @@ export default function Expedition() {
     );
     awardXp(35);
     setMissionStage('experiment');
+    setScreen('magnet-discovery');
+  };
+  const finishMagnetDiscovery = (captures: MagnetCapture[]) => {
+    if (!validMagnetCycle(captures)) return;
+    const session = `magnet-${recordId.current + 1}`;
+    const imported: ExperimentRecord[] = captures.map((capture, index) => {
+      const result = simulateExperiment({
+        ...guidedMagnetSetup,
+        core: 'air',
+        action: capture.action,
+      });
+      // Preserve measured motion rather than inventing a fixed speed or pulse.
+      const speed =
+        capture.action === 'hold'
+          ? 0
+          : Number((1 / capture.duration).toFixed(4));
+      const strength =
+        capture.action === 'hold' ? 0 : Number((capture.peak * 100).toFixed(2));
+      const direction =
+        capture.action === 'hold'
+          ? 'none'
+          : capture.signedPeak > 0
+            ? 'right'
+            : 'left';
+      return {
+        ...result,
+        id: recordId.current + index + 1,
+        motionSpeed: speed,
+        strength,
+        direction,
+        observation:
+          capture.action === 'hold'
+            ? '磁铁仍靠近线圈，实际停住观察后指针归零。'
+            : `亲手${capture.action === 'insert' ? '靠近' : '远离'}线圈，指针向${direction === 'right' ? '右' : '左'}响应；运动用时约 ${capture.duration.toFixed(1)} 秒。响应为无量纲教学值。`,
+        signature: `${session}:${index}:${capture.action}:${speed}`,
+        magnetCapture: capture,
+        magnetSession: session,
+      };
+    });
+    recordId.current += imported.length;
+    const previousCaptures = records.filter((record) => record.magnetCapture);
+    setRecords((current) => [
+      ...current.filter((record) => !record.magnetCapture),
+      ...imported,
+    ]);
+    setLatestRecord(imported.at(-1) ?? null);
+    setSetup(guidedMagnetSetup);
+    setInitialLabMode('guided');
+    setAnnouncement(
+      '你亲手完成的磁铁运动曲线已接入调查板；不同动作的速度如实保留，不作为定量对照。',
+    );
+    if (!previousCaptures.length) awardXp(25);
+    else if (captures.length > previousCaptures.length) awardXp(10);
+    setMissionStage('experiment');
     setScreen('mission');
   };
   const openFreeLab = () => {
@@ -3691,6 +3834,24 @@ export default function Expedition() {
           onExplore={openFreeLab}
         />
       ) : null}
+      {screen === 'magnet-discovery' ? (
+        <Suspense
+          fallback={
+            <output className="discovery-director">
+              正在摆好磁铁、线圈和检流计…
+            </output>
+          }
+        >
+          <MagnetDiscovery
+            initialCaptures={records.flatMap((record) =>
+              record.magnetCapture ? [record.magnetCapture] : [],
+            )}
+            onComplete={finishMagnetDiscovery}
+            onBack={openMap}
+            onExplore={openFreeLab}
+          />
+        </Suspense>
+      ) : null}
       {screen === 'map' && (
         <MapScreen completed={completed} onEnterMission={enterMission} />
       )}
@@ -3706,6 +3867,7 @@ export default function Expedition() {
       )}
       {screen === 'mission' && missionStage === 'experiment' && (
         <ExperimentStage
+          onOpenMagnet={() => setScreen('magnet-discovery')}
           initialMode={initialLabMode}
           setup={setup}
           records={records}

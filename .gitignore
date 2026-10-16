@@ -44,3 +44,8 @@ next-env.d.ts
 /scripts/induction-art/generated/record.json
 /scripts/induction-art/generated/*.png
 /scripts/induction-art/generated/*.txt
+/scripts/magnet-art/generated/*.html
+/scripts/magnet-art/generated/preview-component.mjs
+/scripts/magnet-art/generated/record.json
+/scripts/magnet-art/generated/*.png
+/scripts/magnet-art/generated/*.txt

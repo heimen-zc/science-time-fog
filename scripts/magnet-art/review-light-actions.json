@@ -1,0 +1,13 @@
+[
+  ["lines"],
+  ["shot", "scripts/magnet-art/generated/light-far.png"],
+  ["shot", "scripts/magnet-art/generated/light-track-4x.png", ".magnet-bench", 4, [110,260,400,220]],
+  ["eval", "window.setMagnetFrame({position:.5,needle:.7,signal:.7,flux:.45,field:false})"],
+  ["lines"],
+  ["eval", "window.setMagnetFrame({position:1,needle:0,signal:0,flux:1,field:false})"],
+  ["lines"],
+  ["shot", "scripts/magnet-art/generated/light-coil-4x.png", ".magnet-bench", 4, [380,90,310,270]],
+  ["shot", "scripts/magnet-art/generated/light-gauge-4x.png", ".magnet-bench", 4, [670,40,290,270]],
+  ["eval", "window.setMagnetFrame({position:.8,needle:-.8,signal:-.8,flux:.8,field:true})"],
+  ["lines"]
+]
