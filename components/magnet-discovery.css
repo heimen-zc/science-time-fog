@@ -1,0 +1,362 @@
+.magnet-drag-handle {
+  position: absolute;
+  z-index: 7;
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  transform: translate(-50%, -50%);
+  color: #f9d77c;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  background: #f9d77c15;
+  box-shadow: 0 0 0 9px #f9d77c0d;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.magnet-discovery [data-magnet-slide] {
+  cursor: grab;
+  touch-action: none;
+}
+.magnet-drag-handle:active {
+  cursor: grabbing;
+  background: #f9d77c30;
+}
+.magnet-drag-handle:focus-visible {
+  outline: 2px solid #fce6a8;
+  outline-offset: 7px;
+}
+.magnet-drag-handle[aria-disabled='true'] {
+  opacity: 0;
+  pointer-events: none;
+}
+.magnet-drag-handle > svg {
+  width: 25px;
+  height: 25px;
+}
+.magnet-drag-handle > span {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 1.6;
+  border: 1px solid #f9d77c70;
+  border-radius: 6px;
+  background: #0a1b29ef;
+  padding: 5px 10px;
+  pointer-events: none;
+}
+.magnet-meter {
+  cursor: default;
+}
+.magnet-return-link {
+  margin: 0 0 22px;
+  border-color: #5c8c8870;
+  color: #a6ceca;
+  min-height: 46px;
+}
+.magnet-hold {
+  display: grid;
+  gap: 9px;
+  padding: 16px 20px;
+  margin-top: 12px;
+  background: #80ccc314;
+  border: 1px solid #80ccc34d;
+  border-radius: 12px;
+  color: #a6d8d3;
+}
+.magnet-hold > div {
+  width: 100%;
+  height: 6px;
+  overflow: hidden;
+  background: #0a1c29;
+  border-radius: 8px;
+}
+.magnet-hold > div > span {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: #85d2c9;
+  border-radius: inherit;
+}
+.magnet-hold small {
+  color: #8da6b5;
+}
+.magnet-tools {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.magnet-tools .magnet-assist {
+  color: #d9c48c;
+  border: 1px solid #d9c44735;
+  border-radius: 8px;
+  padding-inline: 14px;
+}
+.magnet-tools details {
+  margin-left: auto;
+}
+.magnet-tools details label {
+  display: grid;
+  gap: 8px;
+  color: #abc0cd;
+  font-size: 13px;
+}
+.magnet-tools details > .magnet-precision {
+  width: 240px;
+  max-width: 80vw;
+}
+.magnet-tools details label input {
+  width: 100%;
+  min-height: 44px;
+  accent-color: #f4cf71;
+}
+.magnet-tools details label span {
+  color: #819aaa;
+  font-size: 11px;
+}
+.magnet-precision > button {
+  width: 100%;
+  padding: 12px 0;
+  border-top: 1px solid #334958;
+}
+.magnet-rate-hint {
+  color: #e5c981 !important;
+}
+.magnet-rate-reference {
+  display: grid;
+  grid-template-columns: 1fr 240px;
+  align-items: center;
+  gap: 20px;
+  margin: 0 0 20px;
+  padding: 18px 20px;
+  border: 1px solid #7caa9b55;
+  border-radius: 12px;
+  background: #74a9960d;
+}
+.magnet-rate-reference strong {
+  font-size: 13px;
+  font-weight: 500;
+  color: #b6d0c9;
+}
+.magnet-rate-reference small {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.8;
+  color: #849fa8;
+}
+.magnet-rate-reference svg {
+  width: 100%;
+  height: 70px;
+}
+.magnet-live {
+  margin: 0 0 20px;
+  display: grid;
+  align-items: center;
+  grid-template-columns: 130px 260px 1fr;
+  gap: 24px;
+  padding: 14px 20px;
+  border: 1px solid #2b4353;
+  border-radius: 12px;
+  background: #0d1d2b;
+}
+.magnet-live > div {
+  display: grid;
+  gap: 7px;
+  font-size: 13px;
+  color: #bdd0d9;
+}
+.magnet-live > div > span:last-child {
+  font-size: 12px;
+  color: #7e9aaa;
+  font-variant-numeric: tabular-nums;
+}
+.magnet-live > svg {
+  display: block;
+  width: 100%;
+  height: 70px;
+}
+.magnet-live > small {
+  color: #849eae;
+  line-height: 1.8;
+}
+.magnet-discovery article.discovery-record {
+  cursor: default;
+}
+.magnet-waiting {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  border: 1px dashed #536f80;
+  border-radius: 50%;
+}
+.magnet-discovery article.discovery-record:hover {
+  transform: none;
+  border-color: #3a596a;
+}
+.magnet-explanation {
+  margin: 22px 0 0;
+}
+.magnet-field-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 0 16px;
+  margin-block: 10px;
+  border: 1px solid #7cbfb768;
+  border-radius: 999px;
+  color: #adddd7;
+  background: #70b4ac13;
+  font-size: 13px;
+  cursor: pointer;
+}
+.magnet-field-toggle svg {
+  width: 16px;
+  height: 16px;
+}
+.magnet-explanation > small {
+  display: block;
+  line-height: 1.8;
+}
+.magnet-trial-message {
+  color: #ddc58c;
+  background: #ddc58c0c;
+  border-left: 2px solid #b9a36b;
+  padding: 14px;
+  font-size: 13px;
+  line-height: 1.9;
+}
+.magnet-speed-pair {
+  margin-top: 20px;
+  padding: 22px;
+  border: 1px solid #79b8ae66;
+  border-radius: 12px;
+  background: #79b8ae0c;
+}
+.magnet-speed-pair h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #b5dcd6;
+  font-size: 15px;
+  line-height: 1.8;
+}
+.magnet-speed-pair h3 svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.magnet-speed-pair > div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-top: 18px;
+}
+.magnet-speed-pair article {
+  border: 1px solid #425d66;
+  background: #11232d;
+  border-radius: 10px;
+  padding: 15px;
+}
+.magnet-speed-pair strong {
+  font-size: 13px;
+  color: #b6cbd5;
+  font-weight: 500;
+}
+.magnet-speed-pair svg {
+  width: 100%;
+  height: 90px;
+}
+.magnet-speed-pair p {
+  font-size: 12px;
+  line-height: 1.9;
+  color: #84a0af;
+  margin-top: 14px;
+}
+.magnet-finish {
+  margin-top: 24px;
+  flex-wrap: wrap;
+}
+.magnet-finish > button:not(.primary-cta) {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #8ca9b9;
+  font-size: 12px;
+  cursor: pointer;
+}
+.magnet-finish > button > svg {
+  width: 16px;
+  height: 16px;
+}
+.magnet-model-note {
+  margin: 20px 0 0;
+  font-size: 11px;
+  line-height: 1.9;
+  color: #7d96a7;
+}
+@media (max-width: 700px) {
+  .magnet-rate-reference {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .magnet-drag-handle {
+    width: 50px;
+    height: 50px;
+  }
+  .magnet-drag-handle > span {
+    font-size: 10px;
+    top: calc(100% + 8px);
+    padding: 3px 7px;
+  }
+  .magnet-drag-handle > svg {
+    width: 21px;
+    height: 21px;
+  }
+  .magnet-live {
+    grid-template-columns: 1fr 1.4fr;
+    gap: 12px;
+    padding: 10px 15px;
+  }
+  .magnet-live > small {
+    grid-column: 1 / -1;
+    font-size: 11px;
+  }
+  .magnet-tools {
+    gap: 8px;
+  }
+  .magnet-tools .magnet-assist {
+    font-size: 11px;
+    padding-inline: 10px;
+  }
+  .magnet-tools details {
+    margin-left: 0;
+  }
+  .magnet-tools details > .magnet-precision {
+    left: 0;
+    right: auto;
+  }
+  .magnet-tools details summary {
+    min-height: 44px;
+  }
+  .magnet-speed-pair {
+    padding: 16px;
+  }
+  .magnet-speed-pair > div {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .magnet-finish {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .magnet-finish > button {
+    justify-content: center;
+  }
+}

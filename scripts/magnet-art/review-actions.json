@@ -1,0 +1,16 @@
+[
+  ["eval", "(()=>{const p=window.magnetProof;const scene=document.querySelector('[data-magnet-scene]');let checked=0;for(const direction of [1,-1])for(let n=0;n<=256;n++){const position=direction===1?n/256:1-n/256;window.setMagnetFrame({position});const actual=[...scene.children].map(el=>el.getAttribute('data-magnet-item'));const expected=[...p.items].sort((a,b)=>(a.key+a.lift*position)-(b.key+b.lift*position)).map(i=>i.name);if(actual.some((name,i)=>name!==expected[i])){const i=actual.findIndex((name,i)=>name!==expected[i]);throw Error('DOM depth order differs at '+position+' / '+i+': '+actual[i]+' vs '+expected[i]);}const moving=[...document.querySelectorAll('[data-magnet-slide]')];if(new Set(moving.map(el=>el.getAttribute('transform'))).size!==1)throw Error('Slide parts have different transforms');const b=document.querySelector('.magnet-bench').getBBox();if(b.x<0||b.y<0||b.x+b.width>960||b.y+b.height>540)throw Error('Art exceeds viewBox at '+position);checked++;}window.setMagnetFrame({position:0,needle:0,signal:0,flux:0,field:false});return{checked,parts:p.items.length,moving:p.items.filter(i=>i.moving).length,anchors:p.anchors}})()"],
+  ["lines"],
+  ["shot", "scripts/magnet-art/generated/far.png"],
+  ["shot", "scripts/magnet-art/generated/track-4x.png", ".magnet-bench", 4, [110,260,400,220]],
+  ["eval", "window.setMagnetFrame({position:.5,needle:.7,signal:.7,flux:.45,field:false})"],
+  ["lines"],
+  ["eval", "window.setMagnetFrame({position:1,needle:0,signal:0,flux:1,field:false})"],
+  ["lines"],
+  ["shot", "scripts/magnet-art/generated/near.png"],
+  ["shot", "scripts/magnet-art/generated/coil-4x.png", ".magnet-bench", 4, [380,90,310,270]],
+  ["shot", "scripts/magnet-art/generated/gauge-4x.png", ".magnet-bench", 4, [670,40,290,270]],
+  ["eval", "window.setMagnetFrame({position:.8,needle:-.8,signal:-.8,flux:.8,field:true});({field:document.querySelector('[data-magnet-field]').getAttribute('opacity'),signal:getComputedStyle(document.querySelector('.magnet-current')).opacity,needle:document.querySelector('[data-magnet-needle]').getAttribute('transform')})"],
+  ["lines"],
+  ["shot", "scripts/magnet-art/generated/field.png"]
+]

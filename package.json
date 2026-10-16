@@ -9,7 +9,7 @@
     "dev": "vinext dev",
     "build": "vinext build",
     "start": "wrangler dev --config dist/server/wrangler.json",
-    "lint": "oxlint app/*.tsx components/induction-discovery.tsx components/induction-bench.tsx lib/induction-model.ts components/ui/button.tsx components/ui/badge.tsx components/ui/progress.tsx components/ui/slider.tsx lib/utils.ts",
+    "lint": "oxlint app/*.tsx components/induction-discovery.tsx components/induction-bench.tsx components/magnet-discovery.tsx components/magnet-bench.tsx lib/induction-model.ts lib/magnet-model.ts components/ui/button.tsx components/ui/badge.tsx components/ui/progress.tsx components/ui/slider.tsx lib/utils.ts",
     "typecheck": "tsc --noEmit",
     "check": "npm test && npm run typecheck && npm run lint && npm run build",
     "format": "oxfmt",
