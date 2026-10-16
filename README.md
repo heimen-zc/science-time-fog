@@ -44,6 +44,37 @@ npm run check
 
 推送到 `main` 分支后，GitHub Actions 会构建静态版本并发布到 GitHub Pages。首次发布时需要在仓库 **Settings → Pages → Build and deployment** 中选择 **GitHub Actions**。
 
+## 实验操作视频
+
+已接入 Agnes 官方异步视频 API，模型为 `agnes-video-2.5-flash`。按[官方文档](https://agnes-ai.com/zh-Hans/docs/agnes-video-25-flash)约束，每段使用 12 秒、`720P`、`16:9`、纯文本模式，共三段，合成为 36 秒的演示。分镜和提示词位于 `content/faraday-video.json`。
+
+1. 先认识铁环上的两组独立回路。
+2. 接通并继续保持，比较瞬间信号与稳定状态。
+3. 断开并比较方向，用现代磁场概念解释现象。
+
+```bash
+npm run video:plan
+npm run video:generate
+```
+
+生成命令会提示输入 API Key，输入内容不会回显。也支持从本机进程环境的 `AGNES_API_KEY` 读取。密钥不写入任何项目文件，不使用 `NEXT_PUBLIC_` 变量，浏览器只播放已经生成的静态视频，不直接调用收费 API。
+
+创建任务后，视频 ID 与状态保存在被 Git 忽略的 `work/agnes-faraday/jobs.json`。中断后使用 `npm run video:wait` 继续查询；已有分镜不会重复创建。只有明确的 `video_queue_full` 响应会间隔 45 秒重试，最多 15 次；超时等结果不确定的请求不会自动重做。生成失败也不会自动切换模型或付费重试。`npm run video:diagnose` 只读检查密钥与模型列表。
+
+定时续作可以设置 `AGNES_QUEUE_RETRIES=0`，让每次唤醒只尝试创建一次；队列仍满时留待下次唤醒，避免密集请求。用户选择继续等待 Flash，不切换标准版。
+
+拿到三段真实视频后，执行：
+
+```bash
+npm run video:render
+```
+
+后期脚本需要本机 `ffmpeg`（可通过 `FFMPEG_PATH` 指定）与 macOS 已安装的 `Tingting` 中文语音，用于添加逐句对齐的旁白、中文字幕和章节标题。它会核验源片与成片时长、解码成片，生成 MP4、WebP 封面、VTT 字幕与去除临时下载链接的来源说明。字幕是后期制作，避免依赖模型生成准确的中文文字。
+
+前端由 `content/faraday-video-asset.json` 的 `ready` 控制入口。只有真实素材完成后期并通过校验，脚本才将其设为 `true`；没有视频文件时不显示空播放器。视频就绪后，首页出现“先看 36 秒实验演示”，首次进入实验台先显示视频向导，也可通过 `?demo=faraday` 直达。观看不会添加实验记录或自动通过调查。
+
+AI 视频是教学重现，并非历史录像或实验数据。发布前应人工检查两组回路的隔离、开关动作与指针的时序；偏转方向的左右取决于具体接线，重点是接通与断开的相对方向。
+
 ## 设计目标
 
 结论不是章节的终点。Demo 更看重五种可迁移的科学能力：精确观察、控制变量、重复检验、排除替代解释，以及知道模型的适用边界。

@@ -56,11 +56,15 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Slider } from '@/components/ui/slider';
+import {
+  FaradayVideoGuide,
+  faradayVideoReady,
+} from '@/components/faraday-video-guide';
 
 const publicAsset = (path: string) =>
   `${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}${path}`;
 
-type Screen = 'intro' | 'map' | 'mission' | 'archive';
+type Screen = 'intro' | 'map' | 'mission' | 'archive' | 'demo';
 type MissionStage = 'prediction' | 'experiment' | 'court';
 type HypothesisId = 'conduction' | 'instrument' | 'temporary-state';
 type ApparatusMode = 'ring' | 'magnet';
@@ -624,9 +628,11 @@ function SiteHeader({
 function IntroScreen({
   portalReady,
   onLaunch,
+  onWatchDemo,
 }: {
   portalReady: boolean;
   onLaunch: () => void;
+  onWatchDemo: () => void;
 }) {
   return (
     <section className="intro-screen" aria-labelledby="intro-title">
@@ -649,6 +655,15 @@ function IntroScreen({
           </Button>
           <span>引导主线约 10 分钟 · 无需预备知识</span>
         </div>
+        {faradayVideoReady ? (
+          <button
+            type="button"
+            className="intro-video-link"
+            onClick={onWatchDemo}
+          >
+            <Play /> 先看 36 秒实验演示 <ArrowRight />
+          </button>
+        ) : null}
         <div className="mission-coordinate">
           <FlaskConical />
           <p>
@@ -1758,6 +1773,8 @@ function ExperimentStage({
   onSetupChange,
   onRun,
   onTransientChainSolved,
+  videoAlreadySeen,
+  onVideoSeen,
   onCourt,
   onBack,
 }: {
@@ -1771,6 +1788,8 @@ function ExperimentStage({
   onSetupChange: (patch: Partial<ExperimentSetup>) => void;
   onRun: (setupOverride?: ExperimentSetup) => void;
   onTransientChainSolved: () => void;
+  videoAlreadySeen: boolean;
+  onVideoSeen: () => void;
   onCourt: () => void;
   onBack: () => void;
 }) {
@@ -1784,6 +1803,9 @@ function ExperimentStage({
     investigationComplete(item.id),
   ).length;
   const [labMode, setLabMode] = useState<LabMode>('guided');
+  const [watchingDemo, setWatchingDemo] = useState(
+    faradayVideoReady && !videoAlreadySeen && records.length === 0,
+  );
   const [activeInvestigation, setActiveInvestigation] =
     useState<InvestigationId>(
       () =>
@@ -2129,7 +2151,11 @@ function ExperimentStage({
           <p className="eyebrow">
             <Settings2 /> 1831 地下实验室
           </p>
-          <h1 id="lab-title">不要找答案，找能区分解释的实验</h1>
+          <h1 id="lab-title">
+            {watchingDemo
+              ? '先看一遍，再亲手做'
+              : '一次只做一个动作，认真看变化'}
+          </h1>
         </div>
         <div className="lab-v2__progress">
           <span>主线调查</span>
@@ -2138,7 +2164,24 @@ function ExperimentStage({
         </div>
       </div>
 
-      <div className="lab-v2__grid">
+      {watchingDemo ? (
+        <FaradayVideoGuide
+          onTry={() => {
+            onVideoSeen();
+            setWatchingDemo(false);
+          }}
+        />
+      ) : null}
+      {faradayVideoReady && !watchingDemo ? (
+        <button
+          type="button"
+          className="lab-video-replay"
+          onClick={() => setWatchingDemo(true)}
+        >
+          <Play /> 不确定怎么操作？重看 36 秒演示
+        </button>
+      ) : null}
+      <div className="lab-v2__grid" hidden={watchingDemo}>
         <aside className="inquiry-board">
           <div className="panel-kicker">
             <Search /> 调查板
@@ -3447,6 +3490,7 @@ const initialSetup: ExperimentSetup = {
 export default function Expedition() {
   const [screen, setScreen] = useState<Screen>('intro');
   const [portalReady, setPortalReady] = useState(false);
+  const [videoAlreadySeen, setVideoAlreadySeen] = useState(false);
   const [missionStage, setMissionStage] = useState<MissionStage>('prediction');
   const [selectedHypothesis, setSelectedHypothesis] =
     useState<HypothesisId | null>(null);
@@ -3469,6 +3513,12 @@ export default function Expedition() {
 
   useEffect(() => {
     const restoreTimer = window.setTimeout(() => {
+      if (
+        faradayVideoReady &&
+        new URLSearchParams(window.location.search).get('demo') === 'faraday'
+      ) {
+        setScreen('demo');
+      }
       try {
         const saved = window.localStorage.getItem(STORAGE_KEY);
         if (saved) {
@@ -3573,6 +3623,7 @@ export default function Expedition() {
     setXp(0);
     setCompleted(false);
     setPortalReady(false);
+    setVideoAlreadySeen(false);
     setScreen('intro');
     try {
       window.localStorage.removeItem(STORAGE_KEY);
@@ -3632,8 +3683,25 @@ export default function Expedition() {
     <main className="app-shell">
       <SiteHeader screen={screen} xp={xp} onMap={openMap} onReset={resetAll} />
       {screen === 'intro' && (
-        <IntroScreen portalReady={portalReady} onLaunch={launchPortal} />
+        <IntroScreen
+          portalReady={portalReady}
+          onLaunch={launchPortal}
+          onWatchDemo={() => setScreen('demo')}
+        />
       )}
+      {screen === 'demo' && faradayVideoReady ? (
+        <div className="video-guide-page">
+          <FaradayVideoGuide
+            onBack={() => setScreen('intro')}
+            onTry={() => {
+              resetMission();
+              setVideoAlreadySeen(true);
+              setScreen('mission');
+              setMissionStage('experiment');
+            }}
+          />
+        </div>
+      ) : null}
       {screen === 'map' && (
         <MapScreen completed={completed} onEnterMission={enterMission} />
       )}
@@ -3662,6 +3730,8 @@ export default function Expedition() {
             setTransientChainSolved(true);
             awardXp(12);
           }}
+          videoAlreadySeen={videoAlreadySeen}
+          onVideoSeen={() => setVideoAlreadySeen(true)}
           onCourt={() => setMissionStage('court')}
           onBack={openMap}
         />

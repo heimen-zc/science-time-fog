@@ -1,0 +1,8 @@
+{
+  "ready": false,
+  "path": "/videos/faraday-induction-demo.mp4",
+  "poster": "/videos/faraday-induction-poster.webp",
+  "captions": "/videos/faraday-induction-zh.vtt",
+  "seconds": 36,
+  "model": "agnes-video-2.5-flash"
+}
