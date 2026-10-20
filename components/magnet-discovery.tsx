@@ -84,7 +84,7 @@ const guidance: Record<Phase, { title: string; text: string; next: string }> = {
   complete: {
     title: '把“有没有磁铁”与“磁通量有没有变化”分开了',
     text: '三时刻观察和同一路径快慢对照都已保存。带着实际操作留下的曲线，继续检验解释。',
-    next: '本次实验完成 · 证据可以带入调查板',
+    next: '本次实验完成 · 证据可以带入密室',
   },
 };
 
@@ -1102,7 +1102,7 @@ export function MagnetDiscovery({
           ) : null}
           {ready && phase !== 'complete' ? (
             <button type="button" onClick={finish} disabled={submitted}>
-              先带这三条观察回到调查板
+              带这三条观察，进入证据密室
               <ArrowRight />
             </button>
           ) : null}

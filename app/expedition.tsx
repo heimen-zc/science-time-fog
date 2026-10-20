@@ -28,6 +28,7 @@ import {
   Copy,
   ExternalLink,
   FileText,
+  Film,
   FlaskConical,
   Gauge,
   History,
@@ -68,6 +69,27 @@ import {
   completedDiscovery,
   type DiscoveryRecord,
 } from '@/lib/induction-model';
+import {
+  decodeNotebook,
+  INQUIRY_STORAGE,
+  makePreviewEvidence,
+  notebookSnapshot,
+  proofValid,
+  verifiedProofs,
+  type GameProof,
+} from '@/lib/inquiry-game';
+
+const EvidenceRoom = lazy(() =>
+  import('@/components/evidence-room').then((m) => ({
+    default: m.EvidenceRoom,
+  })),
+);
+const ArchiveVault = lazy(() =>
+  import('@/components/archive-vault').then((m) => ({
+    default: m.ArchiveVault,
+  })),
+);
+const previewEvidence = makePreviewEvidence();
 
 const MagnetDiscovery = lazy(() =>
   import('@/components/magnet-discovery').then((module) => ({
@@ -83,6 +105,8 @@ type Screen =
   | 'map'
   | 'mission'
   | 'archive'
+  | 'inquiry'
+  | 'vault'
   | 'discovery'
   | 'magnet-discovery';
 type MissionStage = 'prediction' | 'experiment' | 'court';
@@ -765,9 +789,11 @@ function IntroScreen({
 function MapScreen({
   completed,
   onEnterMission,
+  canResume = false,
 }: {
   completed: boolean;
   onEnterMission: () => void;
+  canResume?: boolean;
 }) {
   return (
     <section className="map-screen" aria-labelledby="map-title">
@@ -853,7 +879,12 @@ function MapScreen({
             </span>
           </div>
           <Button className="primary-cta" size="lg" onClick={onEnterMission}>
-            {completed ? '重新进入发现现场' : '进入时间坐标'} <ChevronRight />
+            {canResume
+              ? '带着已有证据继续历险'
+              : completed
+                ? '重新进入发现现场'
+                : '进入时间坐标'}{' '}
+            <ChevronRight />
           </Button>
         </div>
       </div>
@@ -3559,6 +3590,9 @@ export default function Expedition() {
   );
   const [xp, setXp] = useState(0);
   const [completed, setCompleted] = useState(false);
+  const [gameProofs, setGameProofs] = useState<GameProof[]>([]);
+  const [previewProofs, setPreviewProofs] = useState<GameProof[]>([]);
+  const [roomPreview, setRoomPreview] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const recordId = useRef(0);
   const timers = useRef<number[]>([]);
@@ -3575,6 +3609,14 @@ export default function Expedition() {
         setScreen('discovery');
       if (new URLSearchParams(window.location.search).get('lab') === 'magnet')
         setScreen('magnet-discovery');
+      if (
+        new URLSearchParams(window.location.search).get('lab') === 'inquiry'
+      ) {
+        setScreen('inquiry');
+        setRoomPreview(
+          new URLSearchParams(window.location.search).get('preview') === '1',
+        );
+      }
       try {
         const saved = window.localStorage.getItem(STORAGE_KEY);
         if (saved) {
@@ -3586,6 +3628,15 @@ export default function Expedition() {
             setXp(Math.max(0, Math.min(9999, Math.round(parsed.xp))));
           if (typeof parsed.completed === 'boolean')
             setCompleted(parsed.completed);
+        }
+        const notebook = decodeNotebook(
+          window.localStorage.getItem(INQUIRY_STORAGE),
+        );
+        if (notebook) {
+          setRecords(notebook.records);
+          setGameProofs(notebook.proofs);
+          recordId.current = Math.max(0, ...notebook.records.map((r) => r.id));
+          setLatestRecord(notebook.records.at(-1) ?? null);
         }
       } catch {
         // Local progress is optional; malformed browser storage must not break the experience.
@@ -3611,6 +3662,18 @@ export default function Expedition() {
     }
   }, [completed, hydrated, xp]);
 
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      window.localStorage.setItem(
+        INQUIRY_STORAGE,
+        JSON.stringify(notebookSnapshot(records, gameProofs)),
+      );
+    } catch {
+      /* The laboratory also works without browser persistence. */
+    }
+  }, [records, gameProofs, hydrated]);
+
   const resetMission = () => {
     timers.current.forEach((timer) => window.clearTimeout(timer));
     timers.current = [];
@@ -3620,6 +3683,8 @@ export default function Expedition() {
     setConfidence(50);
     setSetup(initialSetup);
     setRecords([]);
+    setGameProofs([]);
+    setRoomPreview(false);
     setLatestRecord(null);
     setTransientChainSolved(false);
     setPulsing(false);
@@ -3682,6 +3747,7 @@ export default function Expedition() {
     setScreen('intro');
     try {
       window.localStorage.removeItem(STORAGE_KEY);
+      window.localStorage.removeItem(INQUIRY_STORAGE);
     } catch {
       // Storage is optional.
     }
@@ -3700,15 +3766,21 @@ export default function Expedition() {
   const finishDiscovery = (observations: DiscoveryRecord[]) => {
     if (!completedDiscovery(observations)) return;
     const imported = observations.map((observation, index) => ({
-      id: index + 1,
+      id: recordId.current + index + 1,
       ...simulateExperiment({
         ...guidedRingSetup,
         action: observation.action,
         polarity: observation.polarity,
       }),
     }));
-    recordId.current = imported.length;
-    setRecords(imported);
+    const hadRing = records.some((r) => r.mode === 'ring');
+    const hasMagnet = validMagnetCycle(
+      records.flatMap((r) => (r.magnetCapture ? [r.magnetCapture] : [])),
+    );
+    recordId.current += imported.length;
+    setRecords((current) =>
+      [...current.filter((r) => r.mode !== 'ring'), ...imported].slice(-24),
+    );
     setLatestRecord(imported.at(-1) ?? null);
     setTransientChainSolved(true);
     setSetup(guidedMagnetSetup);
@@ -3717,9 +3789,10 @@ export default function Expedition() {
     setAnnouncement(
       '你已完成通断观察与电池方向对照。接下来，用磁铁与线圈继续检验。',
     );
-    awardXp(35);
+    if (!hadRing) awardXp(35);
     setMissionStage('experiment');
-    setScreen('magnet-discovery');
+    setRoomPreview(false);
+    setScreen(hasMagnet ? 'inquiry' : 'magnet-discovery');
   };
   const finishMagnetDiscovery = (captures: MagnetCapture[]) => {
     if (!validMagnetCycle(captures)) return;
@@ -3768,12 +3841,13 @@ export default function Expedition() {
     setSetup(guidedMagnetSetup);
     setInitialLabMode('guided');
     setAnnouncement(
-      '你亲手完成的磁铁运动曲线已接入调查板；不同动作的速度如实保留，不作为定量对照。',
+      '你亲手完成的磁铁运动曲线已送进证据密室；不同动作的速度如实保留，不作为定量对照。',
     );
     if (!previousCaptures.length) awardXp(25);
     else if (captures.length > previousCaptures.length) awardXp(10);
     setMissionStage('experiment');
-    setScreen('mission');
+    setRoomPreview(false);
+    setScreen('inquiry');
   };
   const openFreeLab = () => {
     resetMission();
@@ -3816,16 +3890,71 @@ export default function Expedition() {
     awardXp(60);
     setScreen('archive');
   };
+  const saveGameProof = (proof: GameProof) => {
+    const activeRecords = roomPreview ? previewEvidence : records;
+    if (!proofValid(proof, activeRecords)) return;
+    if (roomPreview)
+      setPreviewProofs((current) => [
+        ...current.filter((p) => p.caseId !== proof.caseId),
+        proof,
+      ]);
+    else {
+      if (
+        !verifiedProofs(gameProofs, records).some(
+          (p) => p.caseId === proof.caseId,
+        )
+      )
+        awardXp(20);
+      setGameProofs((current) => [
+        ...current.filter((p) => p.caseId !== proof.caseId),
+        proof,
+      ]);
+    }
+  };
+  const openVault = () => {
+    if (
+      verifiedProofs(
+        roomPreview ? previewProofs : gameProofs,
+        roomPreview ? previewEvidence : records,
+      ).length !== 3
+    )
+      return;
+    if (!roomPreview && !completed) {
+      setCompleted(true);
+      awardXp(30);
+    }
+    setScreen('vault');
+  };
 
   return (
     <main className="app-shell">
       <SiteHeader screen={screen} xp={xp} onMap={openMap} onReset={resetAll} />
       {screen === 'intro' && (
-        <IntroScreen
-          portalReady={portalReady}
-          onLaunch={launchPortal}
-          onMap={openMap}
-        />
+        <>
+          <IntroScreen
+            portalReady={portalReady}
+            onLaunch={launchPortal}
+            onMap={openMap}
+          />
+          <div className="room-entry-actions">
+            <button
+              onClick={() => {
+                setRoomPreview(false);
+                setScreen('inquiry');
+              }}
+            >
+              继续我的证据密室 <ArrowRight size={16} />
+            </button>
+            <button
+              onClick={() => {
+                setRoomPreview(true);
+                setScreen('inquiry');
+              }}
+            >
+              先体验新版密室 · 教学样例预演 <Film size={16} />
+            </button>
+          </div>
+        </>
       )}
       {screen === 'discovery' ? (
         <InductionDiscovery
@@ -3853,7 +3982,16 @@ export default function Expedition() {
         </Suspense>
       ) : null}
       {screen === 'map' && (
-        <MapScreen completed={completed} onEnterMission={enterMission} />
+        <MapScreen
+          completed={completed}
+          canResume={records.length > 0}
+          onEnterMission={() => {
+            if (records.length) {
+              setRoomPreview(false);
+              setScreen('inquiry');
+            } else enterMission();
+          }}
+        />
       )}
       {screen === 'mission' && missionStage === 'prediction' && (
         <PredictionStage
@@ -3882,7 +4020,10 @@ export default function Expedition() {
             setTransientChainSolved(true);
             awardXp(12);
           }}
-          onCourt={() => setMissionStage('court')}
+          onCourt={() => {
+            setRoomPreview(false);
+            setScreen('inquiry');
+          }}
           onBack={openMap}
         />
       )}
@@ -3902,6 +4043,49 @@ export default function Expedition() {
           onMap={openMap}
           onReplay={enterMission}
         />
+      )}
+      {screen === 'inquiry' && (
+        <Suspense
+          fallback={
+            <output className="discovery-director">
+              正在点亮证据密室的放映机…
+            </output>
+          }
+        >
+          <EvidenceRoom
+            key={roomPreview ? 'preview' : 'notebook'}
+            records={roomPreview ? previewEvidence : records}
+            proofs={roomPreview ? previewProofs : gameProofs}
+            preview={roomPreview}
+            onProof={saveGameProof}
+            onArchive={openVault}
+            onCollect={(mode) => {
+              setRoomPreview(false);
+              setScreen(mode === 'ring' ? 'discovery' : 'magnet-discovery');
+            }}
+            onBack={openMap}
+            onStart={enterMission}
+          />
+        </Suspense>
+      )}
+      {screen === 'vault' && (
+        <Suspense
+          fallback={
+            <output className="discovery-director">
+              正在取出法拉第的档案箱…
+            </output>
+          }
+        >
+          <ArchiveVault
+            artifacts={historicalPath.map((node, index) => ({
+              ...node,
+              id: `history-${index}`,
+            }))}
+            onBack={() => setScreen('inquiry')}
+            onMap={openMap}
+            onReplay={enterMission}
+          />
+        </Suspense>
       )}
     </main>
   );
