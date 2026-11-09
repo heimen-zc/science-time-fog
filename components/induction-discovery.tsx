@@ -27,6 +27,8 @@ import {
   Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ActionFilm } from '@/components/action-film';
+import { ringActionFilms, type ActionFilmId } from '@/lib/action-films';
 import {
   InductionBench,
   BENCH_ANCHORS,
@@ -39,7 +41,9 @@ import {
   observationFor,
   PEAK_TIME,
   restingFrame,
+  SWITCH_SECONDS,
   TRANSIENT_SECONDS,
+  transientFrame,
   type BatteryPolarity,
   type DiscoveryRecord,
   type InductionFrame,
@@ -59,7 +63,13 @@ type Phase =
   | 'reverse-opening'
   | 'explain';
 type Node = 'switch' | 'battery' | 'ring';
-const SWITCH_SECONDS = 0.28;
+const filmsByPhase: Partial<Record<Phase, ActionFilmId>> = {
+  ...ringActionFilms,
+  closing: 'close-switch',
+  opening: 'open-switch',
+  'reverse-closing': 'close-reversed',
+  'reverse-opening': 'open-reversed',
+};
 const OPEN_FINISH = TRANSIENT_SECONDS;
 const CLOSE_FINISH = SWITCH_SECONDS + TRANSIENT_SECONDS;
 const REPLAY_HOLD = 1.8;
@@ -143,25 +153,6 @@ const phaseCopy: Record<
   },
 };
 
-function transientFrame(
-  action: RingAction,
-  polarity: BatteryPolarity,
-  age: number,
-  field: boolean,
-): InductionFrame {
-  if (action !== 'connect') {
-    const frame = inductionAt(action, polarity, age, field);
-    return {
-      ...frame,
-      closed:
-        action === 'disconnect' ? Math.max(0, 1 - age / SWITCH_SECONDS) : 1,
-    };
-  }
-  if (age < SWITCH_SECONDS)
-    return { ...restingFrame(polarity), closed: age / SWITCH_SECONDS, field };
-  return inductionAt(action, polarity, age - SWITCH_SECONDS, field);
-}
-
 function Trace({
   record,
   overlay,
@@ -216,6 +207,7 @@ export function InductionDiscovery({
   const [submitted, setSubmitted] = useState(false);
   const [magnified, setMagnified] = useState(false);
   const stage = useRef<HTMLDivElement>(null);
+  const evidence = useRef<HTMLElement>(null);
   const gaugeNeedle = useRef<SVGPathElement>(null);
   const readout = useRef<HTMLSpanElement>(null);
   const supply = useRef<HTMLSpanElement>(null);
@@ -247,6 +239,7 @@ export function InductionDiscovery({
   } | null>(null);
   const consumedClick = useRef(false);
   const copy = phaseCopy[phase];
+  const film = filmsByPhase[phase];
   const busy =
     ['closing', 'opening', 'reverse-closing', 'reverse-opening'].includes(
       phase,
@@ -707,6 +700,19 @@ export function InductionDiscovery({
         </span>
       </div>
 
+      {film && phase !== 'compare' && (
+        <ActionFilm
+          key={film}
+          id={film}
+          disabled={busy}
+          onResume={() => {
+            stage.current
+              ?.querySelector<HTMLButtonElement>('.discovery-hotspot.is-active')
+              ?.focus();
+          }}
+        />
+      )}
+
       <div
         className={`discovery-instrument iso-plate ${magnified ? 'is-magnified' : ''}`}
         ref={stage}
@@ -908,6 +914,7 @@ export function InductionDiscovery({
       ) : null}
 
       <section
+        ref={evidence}
         className={`discovery-evidence ${phase === 'compare' ? 'is-comparing' : ''}`}
         aria-labelledby="discovery-evidence-title"
       >
@@ -918,6 +925,18 @@ export function InductionDiscovery({
           </div>
           <span>{combined ? '两条瞬态曲线已叠合' : '观察后自动出现'}</span>
         </div>
+        {phase === 'compare' && (
+          <ActionFilm
+            id="overlay-traces"
+            onResume={() => {
+              evidence.current
+                ?.querySelector<HTMLButtonElement>(
+                  '.discovery-records button:last-child',
+                )
+                ?.focus();
+            }}
+          />
+        )}
         <div className="discovery-records">
           {(['connect', 'hold', 'disconnect'] as const).map((action) => {
             const record = baseline.find((item) => item.action === action);

@@ -24,6 +24,7 @@ export type DiscoveryRecord = {
 };
 
 export const TRANSIENT_SECONDS = 2.8;
+export const SWITCH_SECONDS = 0.28;
 export const FLUX_TIME = 0.34;
 const POINTER_RISE = 0.12;
 const POINTER_FALL = 0.62;
@@ -71,6 +72,25 @@ export function restingFrame(
   polarity: BatteryPolarity = 'normal',
 ): InductionFrame {
   return inductionAt('disconnect', polarity, TRANSIENT_SECONDS);
+}
+
+/** Switch pose and needle used by both the interactive bench and its offline films. */
+export function transientFrame(
+  action: RingAction,
+  polarity: BatteryPolarity,
+  age: number,
+  field = false,
+): InductionFrame {
+  if (action !== 'connect') {
+    return {
+      ...inductionAt(action, polarity, age, field),
+      closed:
+        action === 'disconnect' ? Math.max(0, 1 - age / SWITCH_SECONDS) : 1,
+    };
+  }
+  if (age < SWITCH_SECONDS)
+    return { ...restingFrame(polarity), closed: age / SWITCH_SECONDS, field };
+  return inductionAt(action, polarity, age - SWITCH_SECONDS, field);
 }
 
 export function observationFor(
