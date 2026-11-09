@@ -22,6 +22,8 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ActionFilm } from '@/components/action-film';
+import { magnetActionFilms, type ActionFilmId } from '@/lib/action-films';
 import {
   MagnetBench,
   MAGNET_ANCHORS,
@@ -50,6 +52,7 @@ type Phase =
   | 'retry'
   | 'complete';
 const names = { insert: '靠近线圈', hold: '停住观察', withdraw: '远离线圈' };
+const filmsByPhase: Partial<Record<Phase, ActionFilmId>> = magnetActionFilms;
 const guidance: Record<Phase, { title: string; text: string; next: string }> = {
   approach: {
     title: '没有电池了，磁铁能让指针动吗？',
@@ -166,6 +169,7 @@ export function MagnetDiscovery({
     still: 0,
     field: false,
     preview: false,
+    film: false,
     restore: 0,
     assist: null as null | {
       from: number;
@@ -182,6 +186,7 @@ export function MagnetDiscovery({
     rateFeedback: '',
   });
   const copy = guidance[phase];
+  const film = filmsByPhase[phase];
   const canMove =
     !preview && ['approach', 'hold', 'away', 'rate', 'retry'].includes(phase);
   const wantsSlow = (reference?.duration ?? records[0]?.duration ?? 2) < 1.7;
@@ -308,14 +313,14 @@ export function MagnetDiscovery({
       runtime.current.trace = [];
     };
     const run = () => {
-      if (!animation && visible && !document.hidden) {
+      if (!animation && visible && !document.hidden && !runtime.current.film) {
         last = 0;
         animation = window.requestAnimationFrame(tick);
       }
     };
     const tick = (now: number) => {
       animation = 0;
-      if (!visible || document.hidden) {
+      if (!visible || document.hidden || runtime.current.film) {
         last = 0;
         return;
       }
@@ -756,6 +761,21 @@ export function MagnetDiscovery({
           <small>/3 条观察</small>
         </span>
       </div>
+      {film && (
+        <ActionFilm
+          key={film}
+          id={film}
+          disabled={preview || assisting}
+          onViewingChange={(viewing) => {
+            runtime.current.film = viewing;
+            if (!viewing) kick.current();
+          }}
+          onResume={() => {
+            handle.current?.focus({ preventScroll: true });
+            showInstrument();
+          }}
+        />
+      )}
       <div
         ref={instrument}
         className="discovery-instrument magnet-instrument iso-plate"
