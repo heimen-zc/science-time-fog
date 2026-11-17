@@ -1,0 +1,55 @@
+时间迷雾原生 iOS 首章
+2026-11-18
+
+运行
+1. 使用 Xcode 打开 TimeFog/TimeFog.xcodeproj。
+2. 选择 TimeFog scheme 和一个 iPhone 模拟器，点击 Run。
+3. 最低系统为 iOS 17；本工程不需要 npm、后端服务、API Key 或登录。
+4. 若使用真机，需要在 Signing and Capabilities 中选择自己的开发团队并设置签名。本包没有个人分发证书或可直接安装到任意真机的 IPA。
+
+命令行
+在仓库根目录执行 bash ios/scripts/run-simulator.sh。
+可传入一个已安装的 iPhone 模拟器 UDID：bash ios/scripts/run-simulator.sh DEVICE_UDID。
+核心测试：swift test --package-path ios/TimeFogCore。
+完整界面测试：在 Xcode 中选择 Product Test。测试使用独立存档目录，不清除正常使用进展。
+
+已实现的体验
+原生 SwiftUI 首页、地图、实验台、解释迷雾、收藏、历史和设置。
+感应环正接和反接各自的接通、保持和断开，逐段记录并对照。
+磁铁可沿导轨直接拖动，可使用位置滑杆或点按辅助，全部经过同一模型。
+近处停住观察必须满足 1.5 秒稳定窗口，远处零结果不能代替。
+个人胶片配对和关键帧光标验证，错误时指出实际改变的条件。
+首章十个奖励共 100 星，解锁工具、三枚方法印章、称号和灯塔修复。
+收藏可打开原始获奖证据回放，重玩不重复发星。
+九种动作 GIF 可播放、暂停、继续和重播，与个人实验记录隔离。
+离线存档、坏档保留、保存失败重试、检查点恢复、后台不计观察时间。
+系统动态文字、减弱动态、声音与触觉开关、点按辅助与可访问性标记。
+固定机构外链和本机清档使用设备所有者验证；清档还有二次确认。
+
+架构与接口
+docs/时间迷雾iOS系统分析文档.docx：详细系统分析。
+docs/system-contract.json：模块、接口、规则、奖励和验收约束。
+docs/接口说明.txt：与实现对应的 Swift 签名、数据字段与调用顺序。
+docs/架构图.mmd：可由 Mermaid 渲染的依赖与事务图。
+TimeFogCore：可独立测试的物理模型、证据、流程、奖励与存档。
+TimeFog/Sources：原生界面、单一协调器、媒体播放器与设备验证。
+TimeFog/Content：打包好的装置几何、插画、GIF 与静帧。
+
+数据
+正常进展在本机 Application Support/TimeFog/progress.json。
+只保存个人实验的模型样本、证据引用、奖励和设置；首版不上传儿童行为。
+完整快照写成功后才更新界面与奖励。重启恢复最近检查点，未完成段重新操作。
+清档前保留 progress-before-reset-UUID.json，便于恢复和定位坏档。
+删除 App 可能删除本机数据，没有云同步或卸载后恢复承诺。
+
+事实边界
+仪器和波形为刻意放慢的无量纲教学模型，不是校准的实验仪表。
+灯塔、助手与破雾属于游戏叙事；真实史料、教学改绘和方法回顾分别标记。
+设备验证只确认设备解锁权限，不识别年龄、亲子关系或隐私同意。
+模拟器验证不代替儿童实测、真机触觉与性能测试、家长门槛评审和 App Store 审核。
+
+后续维护
+Xcode 工程和资源已提交，不需要先运行生成脚本。
+修改或新增 Swift 文件后可运行 python3 ios/scripts/generate-project.py 更新工程引用。
+prepare-resources.mjs 用于从原 Web 绘图与先前 UED 资产重新生成固定资源；普通开发不需要运行。
+资源目录使用 Content，不能把名为 Resources 的目录整层复制到 iOS App 顶层，以免影响系统识别 Bundle。
