@@ -1,0 +1,24 @@
+name: Native iOS
+on:
+  push:
+    paths: ['ios/**', '.github/workflows/ios.yml']
+  pull_request:
+    paths: ['ios/**', '.github/workflows/ios.yml']
+permissions:
+  contents: read
+jobs:
+  chapter:
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test deterministic science and reward core
+        run: swift test --package-path ios/TimeFogCore
+      - name: Choose an available iPhone
+        run: |
+          DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import sys,json;d=json.load(sys.stdin);print(next(p["udid"] for g in d["devices"].values() for p in g if p["name"].startswith("iPhone")))')
+          echo "TIMEFOG_DEVICE=$DEVICE" >> "$GITHUB_ENV"
+      - name: Run native chapter UI tests
+        run: xcodebuild -quiet -project ios/TimeFog/TimeFog.xcodeproj -scheme TimeFog -destination "platform=iOS Simulator,id=$TIMEFOG_DEVICE" -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO test

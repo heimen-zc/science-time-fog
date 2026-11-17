@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="390" height="844" viewBox="0 0 390 844"><defs></defs><g font-family="Arial Unicode MS, PingFang SC, sans-serif"><rect x="0" y="0" width="390" height="844" rx="0" fill="#F8F5ED" stroke="none"/><g transform="translate(24,150) scale(1.0058823529411764)">
+  <rect width="340" height="240" rx="25" fill="#164451"/>
+  <circle cx="51" cy="45" r="1" fill="#BFCDB7" stroke="none" stroke-width="1"/><circle cx="94" cy="74" r="1.5" fill="#BFCDB7" stroke="none" stroke-width="1"/><circle cx="137" cy="103" r="1" fill="#BFCDB7" stroke="none" stroke-width="1"/><circle cx="180" cy="132" r="1.5" fill="#BFCDB7" stroke="none" stroke-width="1"/><circle cx="223" cy="41" r="1" fill="#BFCDB7" stroke="none" stroke-width="1"/><circle cx="266" cy="70" r="1.5" fill="#BFCDB7" stroke="none" stroke-width="1"/><circle cx="309" cy="99" r="1" fill="#BFCDB7" stroke="none" stroke-width="1"/>
+  <path d="M220 74 6 22v105zM247 74l88-45v93z" fill="#E5B65F" opacity=".23"/>
+  <path d="M0 202q65-25 118 1t118-2 104-2v41H0z" fill="#1C4F58"/><path d="M0 224q83-20 150-3t190-4v23H0z" fill="#28626A"/>
+  <path d="m122 215 31-21h131l37 21z" fill="#274B4C"/>
+  <path d="m211 101-13 96h64l-12-96z" fill="#E7DDC3"/><path d="m236 101 9 96h17l-12-96z" fill="#A5B0A1"/>
+  <path d="m206 132 49 3 3 22-55-4z" fill="#A36E51"/><path d="m203 153 55 4-3-22-13-.7 2 21.7" fill="#81543F"/>
+  <path d="m204 98 51 1 7-9h-63z" fill="#AC8B52"/><path d="M207 66h43v28h-43z" fill="#F1CD80" stroke="#9E8657" stroke-width="3"/>
+  <path d="m200 64 28-22 29 22z" fill="#AD7950"/><path d="m228 42 29 22h-18z" fill="#795137"/>
+  <path d="M229 68v24M210 81h36" stroke="#7F764D" stroke-width="2"/>
+  <path d="M218 181q10-13 19 0v16h-19z" fill="#4D5C53"/>
+  <path d="M40 196h44v-16H40zM47 180v-12h12v12M63 180v-21h12v21" fill="#0E2630"/>
+  <text x="22" y="40" font-size="14" fill="#F7D58D" font-weight="500" text-anchor="start" >灯塔已恢复运转</text>
+  <svg x="265" y="30" width="26" height="26" viewBox="0 0 24 24"><path d="m12 2 3 7 7 3-7 3-3 7-3-7-7-3 7-3z" fill="none" stroke="#E8C87A" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </g></g></svg>

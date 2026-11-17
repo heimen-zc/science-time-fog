@@ -1,0 +1,19 @@
+flowchart TD
+    Touch[触摸 点按 滑杆] --> UI[SwiftUI 实验界面]
+    UI --> Model[AppModel 单一命令入口]
+    Clock[单调时钟和系统生命周期] --> Model
+    Model --> Physics[RingPhysics MagnetPhysics]
+    Physics --> Frame[同一帧驱动仪器与原始样本]
+    Frame --> UI
+    Frame --> Validator[EvidenceValidator]
+    Validator --> Engine[ChapterEngine]
+    Engine --> Judge[EvidenceJudge 重新核验证明]
+    Judge --> Engine
+    Engine --> Candidate[ChangeSet 候选快照]
+    Candidate --> Store[ProgressRepository 原子保存]
+    Store -->|成功| Publish[发布状态和奖励演出]
+    Publish --> UI
+    Store -->|失败| Retry[保留候选 不发布 重试]
+    Retry --> Store
+    Film[只读 GIF 教学副本] -.不写证据.-> UI
+    Auth[ParentAccess 设备验证] --> Source[固定机构外链或二次确认清档]

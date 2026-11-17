@@ -1,0 +1,202 @@
+{
+  "version": 1,
+  "date": "2026-11-18",
+  "platform": {
+    "minimumIOS": "17.0",
+    "language": "Swift 5.9 compatible",
+    "ui": "SwiftUI",
+    "storage": "Application Support JSON atomic snapshot",
+    "backend": "none"
+  },
+  "modules": [
+    {
+      "name": "TimeFogCore",
+      "responsibility": "确定性物理模型、证据校验、状态机、奖励与存档协议",
+      "dependencies": [
+        "Foundation"
+      ]
+    },
+    {
+      "name": "AppModel",
+      "responsibility": "单线程命令入口、观察时钟、保存后发布、错误重试",
+      "dependencies": [
+        "TimeFogCore",
+        "Observation"
+      ]
+    },
+    {
+      "name": "ExperimentViews",
+      "responsibility": "仪器操作、关键帧对照、奖励与逐步引导",
+      "dependencies": [
+        "AppModel",
+        "SwiftUI",
+        "CoreGraphics"
+      ]
+    },
+    {
+      "name": "LocalProgressRepository",
+      "responsibility": "版本检查、原子写入、坏档保护",
+      "dependencies": [
+        "TimeFogCore",
+        "Foundation"
+      ]
+    },
+    {
+      "name": "ParentAccess",
+      "responsibility": "设备所有者验证后单次打开固定史料链接或确认清档",
+      "dependencies": [
+        "LocalAuthentication"
+      ]
+    }
+  ],
+  "invariants": [
+    "显示用帧和存档中的样本来自同一个科学模型，示范媒体没有写证据和发奖权限",
+    "观察记录、奖励账本、下一步检查点在同一个快照中持久化，写成功后才发布成功 UI",
+    "奖励只以 chapterID 和 eventID 去重，积分由固定配置求和，不接受界面传入分值",
+    "正式证明重新核验个人记录、装置条件、同次会话和光标所在帧，不信任卡片标题",
+    "无完整轨迹不发奖；近处静止必须观察至少 1.5 秒，远处零不能代替",
+    "系统后台取消未完成观察，示范和主动暂停冻结当前观察，恢复不补算壁钟时间",
+    "已获奖励不可因重做、提示或中断扣减；重玩保留账本引用的原始证据"
+  ],
+  "interfaces": [
+    {
+      "id": "I01",
+      "name": "RingPhysics.frame(action:polarity:time:)",
+      "input": "ExperimentAction 的 connect hold disconnect 三种动作，Polarity 两值，time 为非负有效观察秒",
+      "output": "ScienceFrame 包含 closed、position、flux、signal、needle",
+      "errors": "非法时间归零；有效样本由 EvidenceValidator 再校验",
+      "sideEffects": "无"
+    },
+    {
+      "id": "I02",
+      "name": "MagnetPhysics.follow(previous:target:delta:)",
+      "input": "当前位置与读数、目标位置 0 到 1、delta 为有效模拟秒",
+      "output": "同一状态计算位置、磁通量、响应和阻尼指针",
+      "errors": "非有限输入不进入模型；不跨越线圈中心",
+      "sideEffects": "无"
+    },
+    {
+      "id": "I03",
+      "name": "EvidenceValidator.validate(_:)",
+      "input": "ExperimentRecord 含 UUID、会话、装置配置和时序样本",
+      "output": "通过或 DomainError",
+      "errors": "缺样本、时间倒序、非有限值、模型不一致、窗口未完成",
+      "sideEffects": "无"
+    },
+    {
+      "id": "I04",
+      "name": "EvidenceJudge.inspect(_:records:)",
+      "input": "证明种类、记录 UUID、0 到 1 光标位置、移走解释中电池的动作标记",
+      "output": "Verdict 含 ok 和可执行提示",
+      "errors": "缺证据、混杂条件、会话不同、关键帧未满足",
+      "sideEffects": "无"
+    },
+    {
+      "id": "I05",
+      "name": "ChapterEngine.applying(_:)",
+      "input": "保存观察、叠合、对照、证明、开始重玩等类型化命令",
+      "output": "ChangeSet 含完整候选快照与新增奖励",
+      "errors": "步骤不允许、证据无效、重复提交不得重复加分",
+      "sideEffects": "无磁盘 IO，调用者必须先保存再应用"
+    },
+    {
+      "id": "I06",
+      "name": "ProgressRepository.load() save(_:) reset()",
+      "input": "版本化 AppSnapshot，固定应用私有路径",
+      "output": "有效快照或抛出错误",
+      "errors": "corruptStore、unsupportedVersion、ioFailure；坏档不自动清空",
+      "sideEffects": "保存使用辅助文件后替换；reset 仅从家长确认入口调用"
+    },
+    {
+      "id": "I07",
+      "name": "AppModel.beginRing() setMagnetTarget(_:) submitProof() retrySave()",
+      "input": "用户动作和受限数值，不接受奖励金额或完成标记",
+      "output": "可观察 UI 状态、已保存奖励、错误信息",
+      "errors": "保存失败保留候选事务并提供重试，期间阻止新的推进",
+      "sideEffects": "主线程串行协调模型、仓库与呈现"
+    },
+    {
+      "id": "I08",
+      "name": "ParentAccess.authorize(reason:)",
+      "input": "家长查看来源或清除存档的固定操作理由",
+      "output": "系统设备验证成功或失败",
+      "errors": "取消、未设设备验证、系统失败均不继续危险操作",
+      "sideEffects": "不保存密码、不收集人脸、不持久化授权；不是年龄或亲子身份认证"
+    }
+  ],
+  "rewards": [
+    {
+      "id": "R01",
+      "stars": 10,
+      "condition": "首次完成正接合闸完整轨迹"
+    },
+    {
+      "id": "R02",
+      "stars": 10,
+      "condition": "电池保持接通的稳态零轨迹"
+    },
+    {
+      "id": "R03",
+      "stars": 10,
+      "condition": "同极性的接通和断开轨迹叠合"
+    },
+    {
+      "id": "R04",
+      "stars": 15,
+      "condition": "六次观察齐备且仅反转极性的相反关键帧对照"
+    },
+    {
+      "id": "R05",
+      "stars": 10,
+      "condition": "无电池磁铁从远到近的实际移动轨迹"
+    },
+    {
+      "id": "R06",
+      "stars": 10,
+      "condition": "磁铁近端静止至少 1.5 秒且读数稳定归零"
+    },
+    {
+      "id": "R07",
+      "stars": 5,
+      "condition": "同一会话完整靠近停住远离，远离符号相反"
+    },
+    {
+      "id": "R08",
+      "stars": 10,
+      "condition": "公平对照关键帧排除纯震动说"
+    },
+    {
+      "id": "R09",
+      "stars": 10,
+      "condition": "无电池运动关键帧检验漏电必要性"
+    },
+    {
+      "id": "R10",
+      "stars": 10,
+      "condition": "同一周期近处静止零关键帧检验持续电流说"
+    }
+  ],
+  "persistence": {
+    "schemaVersion": 1,
+    "contentVersion": 1,
+    "chapterID": "induction-1831",
+    "location": "Application Support/TimeFog/progress.json",
+    "transaction": "candidate validate -> encode -> atomic write -> publish",
+    "bounds": {
+      "records": 128,
+      "samplesPerRecord": 1200,
+      "rewardEntries": 10,
+      "proofs": 3
+    },
+    "recovery": "加载失败保留文件并阻止新进展，可重试或由家长确认清档；不静默回零"
+  },
+  "acceptance": [
+    "感应环机械接触前无响应，通断反向，保持时归零，反接后方向反转",
+    "磁铁中途停住真实归零，完整近端静止窗与同会话远离才能构成周期",
+    "证明使用错误动作或缺失证据拒绝并说明具体条件",
+    "十次有效奖励合计 100，重复证明、重玩与重启不再加星",
+    "写入失败不改变内存中的已提交快照，可重试且只提交一次",
+    "重启恢复检查点，后台或示范不累计观察时间",
+    "模拟器完整走完首章，收藏、设置、史料与可访问性入口可用"
+  ]
+}

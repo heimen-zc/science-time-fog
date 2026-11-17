@@ -1,0 +1,91 @@
+时间迷雾原生接口契约 V1
+
+本版是本地模块接口，没有 HTTP 地址或服务端鉴权令牌。
+核心接口定义位于 TimeFogCore/Sources/TimeFogCore，可直接由 Swift Package 导入。
+
+模型
+RingPhysics.frame(action: ExperimentAction, polarity: Polarity, time: Double) -> ScienceFrame
+RingPhysics.duration(_ action: ExperimentAction) -> Double
+MagnetPhysics.initial(_ position: Double = 0) -> ScienceFrame
+MagnetPhysics.flux(_ position: Double) -> Double
+MagnetPhysics.follow(previous: ScienceFrame, target: Double, delta: Double) -> ScienceFrame
+MagnetPhysics.sample(previous: ScienceFrame, position: Double, delta: Double) -> ScienceFrame
+位置 0 是远端，1 是近端。time 和 delta 单位是有效模拟秒。flux signal needle 为无量纲教学量。
+ObservationClock.step(now: Double, running: Bool) -> Double? 为 mutating 方法；now 必须来自单调时钟。
+暂停返回 nil 并重设时钟基点；长帧不补算观察时间；小于最小步长的回调积累后再运行模型。
+
+数据
+ScienceFrame：closed Double, position Double, flux Double, signal Double, needle Double。
+Sample：time Double, frame ScienceFrame。
+ExperimentRecord：id UUID, runID UUID, kind Apparatus, action ExperimentAction, polarity Polarity, configuration Configuration, modelVersion Int, samples [Sample]。
+Configuration：core String, turns Int, batteryPairs Int, leads Int，由固定 apparatus 配置生成。
+EvidenceProof：kind CaseID, evidenceIDs [UUID], checkpoint Double, batteryRemoved Bool。
+RewardEntry：eventID RewardID, evidenceIDs [UUID], proof EvidenceProof?, earnedAt Date。
+RewardDefinition：只读事件配置，固定 stars title reason unlock。界面不能提交 stars。
+AppSnapshot：schemaVersion contentVersion chapterID runID step observations proofs rewards preferences。
+没有总分可写字段；stars 由合法 RewardID 集合和固定配置派生。
+
+验证与回放
+EvidenceValidator.validate(_ record: ExperimentRecord) throws
+EvidenceJudge.frame(_ record: ExperimentRecord, at progress: Double) -> ScienceFrame
+EvidenceJudge.bestCheckpoint(_ record: ExperimentRecord) -> Double
+EvidenceJudge.selection(kind: CaseID, ids: [UUID], records: [ExperimentRecord]) -> Verdict
+EvidenceJudge.inspect(_ proof: EvidenceProof, records: [ExperimentRecord]) -> Verdict
+EvidenceJudge.cycle(_ records: [ExperimentRecord]) -> [ExperimentRecord]?
+SnapshotValidator.validate(_ snapshot: AppSnapshot) throws
+Verdict 是 ok Bool 与 message String；所有光标都限制为 0 到 1。
+
+命令
+ChapterCommand.advance
+ChapterCommand.record(ExperimentRecord)
+ChapterCommand.overlay
+ChapterCommand.flipBattery
+ChapterCommand.compare(EvidenceProof)
+ChapterCommand.prove(EvidenceProof)
+ChapterCommand.replay
+ChapterCommand.preferences(Preferences)
+ChapterEngine.applying(_ command: ChapterCommand) throws -> ChangeSet
+ChangeSet 是候选 snapshot 与本次新增 rewards；这个纯函数不写磁盘。
+
+事务
+protocol ProgressRepository: AnyObject {
+    func load() throws -> AppSnapshot
+    func save(_ snapshot: AppSnapshot) throws
+    func reset() throws -> AppSnapshot
+}
+ChapterSession.init(repository: ProgressRepository) throws
+ChapterSession.send(_ command: ChapterCommand) throws -> ChangeSet
+ChapterSession.retry() throws -> ChangeSet
+engine 和 pending 为只读外部状态。
+send 生成候选并保存；写失败保留 pending，不替换 engine。
+retry 保存同一份候选，成功后替换 engine 并清空 pending。
+有 pending 时拒绝新的推进命令，避免旧快照覆盖。
+
+界面协调
+AppModel.beginRing()
+AppModel.setMagnetTarget(_ value: Double)
+AppModel.overlay() flip() submitComparison() submitProof()
+AppModel.tick(now: TimeInterval)
+AppModel.setSceneActive(_ active: Bool)
+AppModel.retrySave() load() setPreferences(_ value: Preferences)
+AppModel 是 MainActor 上的可观察对象，不应由其他线程直接修改。
+演示媒体没有 ChapterSession 引用，也没有写证据权限。
+
+设备验证
+ParentAccess.authorize(reason: String) async throws -> Bool
+ParentAccess.cancel()
+只使用 LocalAuthentication 的设备所有者验证，不存储已验证角色。
+原始机构地址取代码内固定映射；清档在本次验证后 30 秒内二次确认。
+取消或后台失效时不得打开来源或清档。
+
+错误
+DomainError.invalidStep
+DomainError.invalidObservation(String)
+DomainError.missingEvidence(String)
+DomainError.unfairComparison(String)
+DomainError.notAtCheckpoint(String)
+DomainError.corruptStore
+DomainError.unsupportedVersion
+DomainError.ioFailure
+界面使用 localizedDescription 提供下一步；未通过验证不写记录、不发星。
+设备验证错误由系统返回，界面保留学习与取消路径。
