@@ -165,5 +165,16 @@ import XCTest
     for _ in 0..<5 where !cancel.isHittable { app.swipeUp() }
     cancel.tap()
     XCTAssertTrue(app.staticTexts["我的与易用性设置"].waitForExistence(timeout: 10))
+    let assist = app.switches["优先使用点按辅助"]
+    for _ in 0..<5 where !assist.isHittable { app.swipeDown() }
+    assist.tap()
+    app.switches["减弱动态效果"].tap()
+    app.tabBars.buttons["历险"].tap()
+    begin()
+    XCTAssertFalse(app.buttons["bench.switch"].exists)
+    capture("16-点按辅助")
+    primary()
+    step("ringZero")
+    stars(10)
   }
 }

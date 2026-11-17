@@ -24,6 +24,12 @@ struct RootView: View {
       NavigationStack { SettingsView() }.tabItem { Label("我的", systemImage: "person.crop.circle") }
         .tag(2)
     }.tint(Theme.teal)
+      .transaction { transaction in
+        if model.reduceMotion {
+          transaction.animation = nil
+          transaction.disablesAnimations = true
+        }
+      }
       .environment(
         \.dynamicTypeSize,
         model.snapshot.preferences.largeText ? max(systemType, .xxLarge) : systemType

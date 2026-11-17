@@ -1,11 +1,15 @@
 name: Native iOS
 on:
   push:
+    branches: [main]
     paths: ['ios/**', '.github/workflows/ios.yml']
   pull_request:
     paths: ['ios/**', '.github/workflows/ios.yml']
 permissions:
   contents: read
+concurrency:
+  group: native-ios-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   chapter:
     runs-on: macos-latest

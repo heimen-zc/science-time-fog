@@ -182,7 +182,8 @@ struct InstrumentPanel: View {
       }
       BenchView(
         kind: model.step.isMagnet ? .magnet : .ring, frame: model.frame,
-        interactive: !model.busy || model.step.isMagnet, switchAction: { model.beginRing() },
+        interactive: (!model.busy || model.step.isMagnet) && !model.snapshot.preferences.tapAssist,
+        switchAction: { model.beginRing() },
         magnetTarget: { model.setMagnetTarget($0) })
       HStack {
         VStack(alignment: .leading, spacing: 7) {

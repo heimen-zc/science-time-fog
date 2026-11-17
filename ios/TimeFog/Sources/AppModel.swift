@@ -78,7 +78,20 @@ import TimeFogCore
     records.filter { $0.kind == .ring && $0.action != .hold }
   }
   var guide: String {
-    switch step {
+    if snapshot.preferences.tapAssist {
+      switch step {
+      case .ringConnect, .reversedConnect:
+        return "点下面的合闸按钮，再观察右侧指针。辅助操作会留下同样的真实证据。"
+      case .ringDisconnect, .reversedDisconnect:
+        return "点下面的断开按钮。电池和接线不变，看看方向与合闸时有什么不同。"
+      case .magnetApproach:
+        return "点下面的靠近按钮，磁铁会沿导轨移动。到达线圈旁后松手观察。"
+      case .magnetWithdraw:
+        return "点下面的远离按钮，沿同一条轨道拉远。辅助操作不影响奖励。"
+      default: break
+      }
+    }
+    return switch step {
     case .ringConnect, .reversedConnect: "只动左前方开关。合闸后先别再点，完整观察右侧指针归零。"
     case .ringZero, .reversedZero: "电池还接着。再观察一小段，看看另一侧有没有持续响应。"
     case .ringDisconnect, .reversedDisconnect: "电池方向和接线都保持不变，只抬起同一个开关。"
